@@ -9,7 +9,8 @@ This is not a claim that the release is accepted or deployed.
 - Branch: `main`
 - Record the exact `main` SHA in the acceptance report when Beta testing starts.
 - The last merged code slice before release documentation was `387205a`
-  (account recovery). Later commits are documentation and test guard changes.
+  (account recovery). Release documentation follows it; no application code
+  changed after that merge.
 
 ## Database
 
@@ -47,6 +48,10 @@ Use isolated Beta data and two disposable accounts.
 - [ ] Edit project and issue; changes persist. Force a stale edit and confirm
       the 409 conflict is visible without losing input.
 - [ ] Complete and reopen the issue; both persist in project and My issues.
+- [ ] If GitHub is configured, merge or close the linked PR and refresh: the
+      PR observation changes, the issue's manual status does not.
+- [ ] If GitHub is configured, unlink or disconnect while a refresh is in
+      flight: the late response cannot restore the link or expose removed data.
 - [ ] Search by project name, issue title, and `W-<number>`; empty/no-match/error
       states are honest.
 - [ ] User B cannot open user A's workspace, project, or issue by changing
