@@ -37,6 +37,14 @@ jobs:
         run: pnpm typecheck
       - name: Unit tests
         run: pnpm test:unit
+      - name: Start local PostgreSQL for migration tests
+        run: |
+          sudo systemctl start postgresql.service || sudo pg_ctlcluster 16 main start
+          sudo -u postgres psql -c "alter user postgres password 'postgres';"
+      - name: Migration and RLS tests
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+        run: pnpm test:db
       - name: Production build
         run: pnpm build
       - name: Production smoke test
