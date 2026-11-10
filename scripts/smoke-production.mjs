@@ -47,7 +47,7 @@ try {
     for (const marker of markers) assert.ok(html.includes(marker), `${path} must contain ${marker}`);
     console.log(`PASS ${path}`);
   }
-  const missing = await fetch(new URL('/__ci_missing_route__', origin), { signal: AbortSignal.timeout(10000), redirect: 'manual' });
+  const missing = await fetch(new URL('/lndev-ui/__ci_missing_route__', origin), { signal: AbortSignal.timeout(10000), redirect: 'manual' });
   assert.equal(missing.status, 404, 'Unknown routes must not return a successful page');
   console.log('PASS unknown route returns 404');
 } catch (error) {
