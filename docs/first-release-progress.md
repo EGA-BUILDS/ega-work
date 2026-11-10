@@ -3,33 +3,35 @@
 Working backlog: [first-release-issue-drafts.md](first-release-issue-drafts.md). GitHub issues were created
 from that backlog; draft numbers and GitHub numbers differ.
 
-| Draft | GitHub | Outcome                            | Status                    |
-| ----- | ------ | ---------------------------------- | ------------------------- |
-| 1     | #3     | Database and migration foundation  | In progress               |
-| 2     | #4     | Private workspace on first sign-in | Pending                   |
-| 3     | #5     | Circle workspace after login       | Pending                   |
-| 4     | #6     | Create and list projects           | Pending                   |
-| 5     | #7     | View and edit a project            | Pending                   |
-| 6     | #8     | Create an issue                    | Pending                   |
-| 7     | #9     | Assigned issues in My issues       | Pending                   |
-| 8     | #10    | Open and edit an issue             | Pending                   |
-| 9     | #11    | Explicitly complete an issue       | Pending                   |
-| 10    | #12    | Search saved work                  | Pending                   |
-| 11    | #13    | GitHub authorization decision      | External decision pending |
-| 12    | #14    | Connect and disconnect GitHub      | Blocked by #13            |
-| 13    | #15    | Link a real PR                     | Blocked by #10 and #14    |
-| 14    | #16    | Refresh PR state                   | Blocked by #11 and #15    |
-| 15    | #17    | Remove remaining demo paths        | Pending                   |
-| 16    | #18    | Account recovery                   | Pending                   |
-| 17    | #19    | Beta acceptance                    | Manual acceptance pending |
+| Draft | GitHub | Outcome                            | Status                                                                                                               |
+| ----- | ------ | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 1     | #3     | Database and migration foundation  | Merged `4e3b401`                                                                                                     |
+| 2     | #4     | Private workspace on first sign-in | Merged `ca55557`                                                                                                     |
+| 3     | #5     | Circle workspace after login       | Merged `ca55557`                                                                                                     |
+| 4     | #6     | Create and list projects           | Merged `ca55557`                                                                                                     |
+| 5     | #7     | View and edit a project            | Merged `ca55557`                                                                                                     |
+| 6     | #8     | Create an issue                    | Merged `ca55557`                                                                                                     |
+| 7     | #9     | Assigned issues in My issues       | Merged `ca55557`                                                                                                     |
+| 8     | #10    | Open and edit an issue             | Merged `ca55557`                                                                                                     |
+| 9     | #11    | Explicitly complete an issue       | Merged `ca55557`                                                                                                     |
+| 10    | #12    | Search saved work                  | Merged `0292068`                                                                                                     |
+| 11    | #13    | GitHub authorization decision      | Blocked: owner/provider decision; recommendation in [github-integration-decision.md](github-integration-decision.md) |
+| 12    | #14    | Connect and disconnect GitHub      | Blocked by #13 and missing App credentials                                                                           |
+| 13    | #15    | Link a real PR                     | Blocked by #10, #14 and a test repository                                                                            |
+| 14    | #16    | Refresh PR state                   | Blocked by #14, #15 and provider access                                                                              |
+| 15    | #17    | Remove remaining demo paths        | Merged `a9592da`                                                                                                     |
+| 16    | #18    | Account recovery                   | Merged `387205a`                                                                                                     |
+| 17    | #19    | Beta acceptance                    | Documentation ready in [release-readiness.md](release-readiness.md); manual acceptance pending                       |
 
 ## Assignment log
 
-| Issue | Branch / PR                       | Candidate | Implementer                       | Reviewer                                                              | Findings                                                             | Checks                                              | Merge     |
-| ----- | --------------------------------- | --------- | --------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------- | --------- |
-| #3    | `feat/db-foundation` / PR #20     | `8333858` | `opencode-go/deepseek-v4.1-flash` | `opencode/minimax-m3.1-flash-free`; re-review `opencode/iceman-free`  | 5 material findings fixed; no material findings on re-review         | `test:db`, `test:unit`, typecheck, build, CI        | `4e3b401` |
-| #4-#9 | `feat/private-workspace` / PR #21 | `c7e6158` | `opencode-go/deepseek-v4.1-flash` | `opencode/minimax-m3.1-flash-free`; re-review `opencode-go/beam-free` | 3 material + 5 low findings fixed; no material findings on re-review | `test:unit`, `test:db`, typecheck, build, smoke, CI | `ca55557` |
-| #12   | `feat/workspace-search`           | pending   | `opencode-go/deepseek-v4.1-flash` | pending                                                               | pending                                                              | `test:unit`, typecheck, build, smoke                | pending   |
+| Issue  | Branch / PR                       | Candidate | Implementer                       | Reviewer                                                                            | Findings                                                    | Checks                                              | Merge     |
+| ------ | --------------------------------- | --------- | --------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------- | --------- |
+| #3     | `feat/db-foundation` / PR #20     | `8333858` | `opencode-go/deepseek-v4.1-flash` | `opencode/minimax-m3.1-flash-free`; re-review `opencode/iceman-free`                | 5 material fixed; no material findings on re-review         | `test:db`, `test:unit`, typecheck, build, CI        | `4e3b401` |
+| #4-#11 | `feat/private-workspace` / PR #21 | `c7e6158` | `opencode-go/deepseek-v4.1-flash` | `opencode/minimax-m3.1-flash-free`; re-review `opencode-go/beam-free`               | 3 material + 5 low fixed; no material findings on re-review | `test:unit`, `test:db`, typecheck, build, smoke, CI | `ca55557` |
+| #12    | `feat/workspace-search` / PR #22  | `45dbc57` | `opencode-go/deepseek-v4.1-flash` | `opencode-go/iceman-contributor-free`                                               | No material findings                                        | `test:unit`, typecheck, build, smoke, CI            | `0292068` |
+| #17    | `feat/workspace-audit` / PR #23   | `b6565ee` | `opencode-go/deepseek-v4.1-flash` | `opencode/inkling-2-small-free`; re-review `opencode-go/iceman-contributor-free`    | 2 medium + 2 low fixed; no material findings on re-review   | `test:unit`, smoke, CI                              | `a9592da` |
+| #18    | `feat/account-recovery` / PR #24  | `48fc11c` | `opencode-go/deepseek-v4.1-flash` | `opencode/minimax-m3.1-flash-free`; re-review `opencode-go/iceman-contributor-free` | 2 medium + 6 low fixed; no material findings on re-review   | `test:unit`, typecheck, build, smoke, CI            | `387205a` |
 
 ## Database
 
