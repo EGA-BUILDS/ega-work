@@ -29,6 +29,8 @@ from that backlog; draft numbers and GitHub numbers differ.
 | ----- | -------------------- | --------- | --------------------------------- | -------- | -------- | --------------------------------- | ------- |
 | #3    | `feat/db-foundation` | pending   | `opencode-go/deepseek-v4.1-flash` | pending  | pending  | `test:db`, `test:unit`, typecheck | pending |
 
+| #4, #5 | `feat/private-workspace` | pending | `opencode-go/deepseek-v4.1-flash` | pending | pending | `test:unit`, `test:db`, typecheck, build | pending |
+
 ## Database
 
 - Dev target: the project configured in `.env.dev` (session pooler, TLS verified).
