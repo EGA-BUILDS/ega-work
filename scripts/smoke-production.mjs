@@ -6,6 +6,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 // Own the server lifecycle; never attach to an unrelated process on a fixed port.
 const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', '0'], {
   stdio: ['ignore', 'pipe', 'pipe'],
+  env: { ...process.env, SUPABASE_URL: 'https://example.supabase.co', SUPABASE_ANON_KEY: 'smoke-test-key' },
 });
 let output = '';
 let origin;
@@ -58,7 +59,10 @@ try {
     redirect: 'manual',
   });
   assert.equal(callback.status, 307);
-  assert.match(callback.headers.get('location') ?? '', /^\/login\?error=(config|link)$/);
+  assert.equal(callback.headers.get('location'), '/login?error=link');
+  const personalSpace = await fetch(new URL('/me', origin), { redirect: 'manual' });
+  assert.equal(personalSpace.status, 307, 'Signed-out users must be redirected to login');
+  assert.equal(personalSpace.headers.get('location'), '/login?next=%2Fme');
   const signout = await fetch(new URL('/auth/signout', origin), { method: 'POST', redirect: 'manual' });
   assert.equal(signout.status, 303);
   assert.equal(signout.headers.get('location'), '/login');

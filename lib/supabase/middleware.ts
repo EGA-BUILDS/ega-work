@@ -2,23 +2,15 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { markNoStore } from '@/lib/auth/http';
-import { loginPath } from '@/lib/auth/redirect';
 
 import { readSupabaseConfig } from './config';
 import { SUPABASE_COOKIE_OPTIONS } from './cookies';
 
-function copyAuthCookies(from: NextResponse, to: NextResponse): void {
-   from.cookies.getAll().forEach((cookie) => {
-      to.cookies.set(cookie);
-   });
-}
-
 /**
- * Refreshes the Supabase session for the request and protects `/me`.
+ * Refreshes the Supabase session for the request.
  *
  * The updated cookies must be written to the outgoing response before it is
- * returned. Unauthenticated access to the personal space is redirected to
- * `/login` with a safe same-origin return path.
+ * returned. Private pages verify the user independently.
  */
 export async function updateSession(request: NextRequest): Promise<NextResponse> {
    const config = readSupabaseConfig();
@@ -49,23 +41,7 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
       },
    });
 
-   const userResult = await supabase.auth.getUser().catch(() => null);
-   const user = userResult?.data.user ?? null;
-   const { pathname, search } = request.nextUrl;
-   const protectedRoute = pathname === '/me' || pathname.startsWith('/me/');
-   const transientError =
-      !userResult ||
-      userResult.error?.name === 'AuthRetryableFetchError' ||
-      userResult.error?.name === 'AuthUnknownError';
-
-   if (!user && protectedRoute && !transientError) {
-      const redirectResponse = new NextResponse(null, {
-         status: 307,
-         headers: { Location: loginPath(`${pathname}${search}`) },
-      });
-      copyAuthCookies(response, redirectResponse);
-      return markNoStore(redirectResponse);
-   }
+   await supabase.auth.getUser().catch(() => null);
 
    return markNoStore(response);
 }
