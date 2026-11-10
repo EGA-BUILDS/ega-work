@@ -59,3 +59,8 @@ export type WorkGithubConnection = {
    revoked_at: string | null;
    updated_at: string;
 };
+
+export type WorkspaceSearchResults = {
+   projects: WorkProject[];
+   issues: WorkIssue[];
+};

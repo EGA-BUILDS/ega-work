@@ -43,12 +43,21 @@ allocated per workspace by the database trigger from issue #3.
 
 Issue completion is an explicit owner action. No pull-request state changes it.
 
+## Search
+
+`Cmd/Ctrl+K` or the workspace header search opens a command palette backed by
+`GET /api/workspaces/<id>/search?q=...`. The server trims and bounds the query,
+escapes LIKE wildcards, and searches saved project names plus issue titles and
+`W-<number>` identifiers inside the verified workspace. Empty input, no matches,
+and request failures each show an honest state. Selecting a result opens the
+saved record.
+
 ## Unavailable in this slice
 
 - GitHub connection, PR linking, and PR refresh are not configured; the issue
   page says so instead of showing a fake link.
-- Search, invitations, teams, cycles, reviews, views, initiatives, agents, and
-  the remaining Circle sections are not part of the private workspace.
+- Invitations, teams, cycles, reviews, views, initiatives, agents, and the
+  remaining Circle sections are not part of the private workspace.
 - The demo links stay inside `/lndev-ui/...` and carry a persistent "Demo
   workspace — sample data only" label.
 - Renaming or deleting a workspace, projects, and issues is not exposed.

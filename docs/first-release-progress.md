@@ -25,10 +25,11 @@ from that backlog; draft numbers and GitHub numbers differ.
 
 ## Assignment log
 
-| Issue | Branch / PR                       | Candidate   | Implementer                       | Reviewer                                                             | Findings                                                     | Checks                                              | Merge     |
-| ----- | --------------------------------- | ----------- | --------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------- | --------- |
-| #3    | `feat/db-foundation` / PR #20     | `8333858`   | `opencode-go/deepseek-v4.1-flash` | `opencode/minimax-m3.1-flash-free`; re-review `opencode/iceman-free` | 5 material findings fixed; no material findings on re-review | `test:db`, `test:unit`, typecheck, build, CI        | `4e3b401` |
-| #4-#9 | `feat/private-workspace` / PR #21 | see PR head | `opencode-go/deepseek-v4.1-flash` | `opencode/minimax-m3.1-flash-free`                                   | 3 material + 5 low findings fixed; re-review pending         | `test:unit`, `test:db`, typecheck, build, smoke, CI | pending   |
+| Issue | Branch / PR                       | Candidate | Implementer                       | Reviewer                                                              | Findings                                                             | Checks                                              | Merge     |
+| ----- | --------------------------------- | --------- | --------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------- | --------- |
+| #3    | `feat/db-foundation` / PR #20     | `8333858` | `opencode-go/deepseek-v4.1-flash` | `opencode/minimax-m3.1-flash-free`; re-review `opencode/iceman-free`  | 5 material findings fixed; no material findings on re-review         | `test:db`, `test:unit`, typecheck, build, CI        | `4e3b401` |
+| #4-#9 | `feat/private-workspace` / PR #21 | `c7e6158` | `opencode-go/deepseek-v4.1-flash` | `opencode/minimax-m3.1-flash-free`; re-review `opencode-go/beam-free` | 3 material + 5 low findings fixed; no material findings on re-review | `test:unit`, `test:db`, typecheck, build, smoke, CI | `ca55557` |
+| #12   | `feat/workspace-search`           | pending   | `opencode-go/deepseek-v4.1-flash` | pending                                                               | pending                                                              | `test:unit`, typecheck, build, smoke                | pending   |
 
 ## Database
 
