@@ -57,6 +57,7 @@ try {
       ['/', ['The work, in one clear record', 'Explore the demo']],
       ['/demo', ['Work overview', 'Demo data', '<title>EGA Work — Demo workspace</title>']],
       ['/login', ['Sign in to EGA Work']],
+      ['/account/reset', ['Recover access']],
       [
          '/lndev-ui/my-issues',
          ['Demo workspace.', 'Combobox: keyboard selection skips disabled options inconsistently'],
@@ -81,6 +82,7 @@ try {
    for (const path of [
       '/lndev-ui-demo-is-not-a-workspace/my-issues',
       '/w/00000000-0000-4000-8000-000000000000',
+      '/account/password',
    ]) {
       const response = await fetch(new URL(path, origin), {
          signal: AbortSignal.timeout(10000),

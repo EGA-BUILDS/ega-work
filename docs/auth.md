@@ -41,19 +41,22 @@ is not performed by this repository's tests.
 
 ## Requests and files
 
-| Path                         | Purpose                                                                 |
-| ---------------------------- | ----------------------------------------------------------------------- |
-| `app/login/page.tsx`         | Sign-in page, configuration state, link errors, authenticated redirect  |
-| `app/login/actions.ts`       | Server actions for password and magic-link sign-in                      |
-| `app/auth/callback/route.ts` | Verifies a PKCE `code` or email `token_hash`, then redirects internally |
-| `app/auth/signout/route.ts`  | Same-origin POST sign-out                                               |
-| `app/me/page.tsx`            | Verifies the session and enters the private workspace                   |
-| `middleware.ts`              | Session refresh                                                         |
-| `lib/supabase/server.ts`     | Request-scoped `@supabase/ssr` client backed by Next.js cookies         |
-| `lib/supabase/middleware.ts` | Cookie refresh                                                          |
-| `lib/auth/redirect.ts`       | Same-origin return-path validation                                      |
-| `lib/auth/site-origin.ts`    | Trusted callback-origin resolution                                      |
-| `lib/auth/request-origin.ts` | Trusted same-origin check for state-changing requests                   |
+| Path                            | Purpose                                                                 |
+| ------------------------------- | ----------------------------------------------------------------------- |
+| `app/login/page.tsx`            | Sign-in page, configuration state, link errors, authenticated redirect  |
+| `app/login/actions.ts`          | Server actions for password and magic-link sign-in                      |
+| `app/auth/callback/route.ts`    | Verifies a PKCE `code` or email `token_hash`, then redirects internally |
+| `app/auth/signout/route.ts`     | Same-origin POST sign-out                                               |
+| `app/account/reset/page.tsx`    | Generic password-recovery request                                       |
+| `app/account/password/page.tsx` | Verified recovery session sets a new password                           |
+| `app/account/actions.ts`        | Recovery request and password update server actions                     |
+| `app/me/page.tsx`               | Verifies the session and enters the private workspace                   |
+| `middleware.ts`                 | Session refresh                                                         |
+| `lib/supabase/server.ts`        | Request-scoped `@supabase/ssr` client backed by Next.js cookies         |
+| `lib/supabase/middleware.ts`    | Cookie refresh                                                          |
+| `lib/auth/redirect.ts`          | Same-origin return-path validation                                      |
+| `lib/auth/site-origin.ts`       | Trusted callback-origin resolution                                      |
+| `lib/auth/request-origin.ts`    | Trusted same-origin check for state-changing requests                   |
 
 Flow:
 
@@ -72,6 +75,12 @@ success. Invalid credentials do not reveal whether an account exists.
 5. `middleware.ts` refreshes the session on application requests. The `/me`
    page verifies the user, bootstraps the workspace, and redirects to
    `/w/<workspace-id>`; unauthenticated requests go to `/login`.
+
+Password recovery uses the same callback. `/account/reset` calls
+`resetPasswordForEmail` with a callback whose `next` is `/account/password`.
+The response is generic for every valid address. After Supabase verifies the
+link, the signed-in user sets a password with `updateUser`; expired or reused
+links land on the retryable login state.
 
 ## Security boundaries
 
@@ -100,6 +109,9 @@ success. Invalid credentials do not reveal whether an account exists.
 | Email send failure                        | A retryable error is shown without exposing provider internals                         |
 | Link sent                                 | Inbox confirmation with a resend option                                                |
 | Expired or invalid link                   | Redirect to `/login?error=link` with a request-a-new-link message                      |
+| Recovery requested                        | Generic "if an account exists" confirmation; no account enumeration                    |
+| Recovery session valid                    | `/account/password` accepts a new password and reports success                         |
+| Recovery session missing/expired          | Actionable error with a link to request a new one                                      |
 | Transient session verification failure    | `/me` shows a retry state instead of trusting the request                              |
 | Sign-out failure                          | `/me?error=signout` reports that the session was not cleared                           |
 | No saved projects                         | Workspace overview shows a genuine empty state; no mock records                        |
@@ -115,7 +127,7 @@ corepack pnpm typecheck
 ```
 
 `pnpm test:unit` covers same-origin redirect validation, email validation,
-configuration states, and callback-origin resolution. A production build and a
+configuration states, callback-origin resolution, and password validation. A production build and a
 live Supabase magic-link journey require credentials and dashboard
 configuration; they are not proven by these unit tests.
 
@@ -126,6 +138,7 @@ configuration; they are not proven by these unit tests.
   `/w/<workspace-id>`.
 - A PKCE magic link must normally be opened in the browser that requested it,
   because the code verifier lives in that browser's cookie.
-- There is no password setup or reset, OAuth, passkey, account-management, or admin surface.
+- Password setup/reset exists for existing accounts. OAuth, passkey, account
+  management, and admin surfaces do not.
 - Email delivery, dashboard redirect allowlists, rate limits, and hosted session
   behavior must be verified in the target Supabase environment.

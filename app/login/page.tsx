@@ -90,6 +90,11 @@ export default async function LoginPage({
                      next={next}
                      initialError={loginErrorMessage(firstValue(params.error))}
                   />
+                  <p className="mt-4 text-center text-sm">
+                     <Link href="/account/reset" className="underline underline-offset-4">
+                        Forgot your password?
+                     </Link>
+                  </p>
                </CardContent>
                <CardFooter>
                   <Button variant="ghost" size="sm" asChild>
