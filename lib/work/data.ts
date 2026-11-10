@@ -2,7 +2,8 @@ import 'server-only';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import type { WorkIssue, WorkIssueStatus, WorkProject } from './types';
+import { escapeLikePattern, issueNumberFromQuery, normalizeSearchQuery } from './search';
+import type { WorkIssue, WorkIssueStatus, WorkProject, WorkspaceSearchResults } from './types';
 
 export type WorkDataErrorCode = 'unavailable' | 'not_found' | 'conflict';
 
@@ -246,4 +247,55 @@ export async function countOpenIssues(
       .eq('status', 'open');
    if (error) unavailable();
    return count ?? 0;
+}
+
+export async function searchWorkspace(
+   supabase: SupabaseClient,
+   workspaceId: string,
+   rawQuery: string
+): Promise<WorkspaceSearchResults> {
+   const query = normalizeSearchQuery(rawQuery);
+   if (!query) {
+      return { projects: [], issues: [] };
+   }
+
+   const pattern = `%${escapeLikePattern(query)}%`;
+   const { data: projects, error: projectError } = await supabase
+      .from('work_projects')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .ilike('name', pattern)
+      .order('updated_at', { ascending: false })
+      .limit(10);
+   if (projectError) unavailable();
+
+   const { data: titled, error: titleError } = await supabase
+      .from('work_issues')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .ilike('title', pattern)
+      .order('updated_at', { ascending: false })
+      .limit(10);
+   if (titleError) unavailable();
+
+   const number = issueNumberFromQuery(query);
+   let byNumber: WorkIssue[] = [];
+   if (number !== null) {
+      const { data, error } = await supabase
+         .from('work_issues')
+         .select('*')
+         .eq('workspace_id', workspaceId)
+         .eq('number', number)
+         .limit(1);
+      if (error) unavailable();
+      byNumber = ((data ?? []) as WorkIssue[]).map(normalizeIssue);
+   }
+
+   const issues = [...byNumber, ...((titled ?? []) as WorkIssue[]).map(normalizeIssue)]
+      .filter(
+         (issue, index, all) => all.findIndex((candidate) => candidate.id === issue.id) === index
+      )
+      .slice(0, 10);
+
+   return { projects: (projects ?? []) as WorkProject[], issues };
 }

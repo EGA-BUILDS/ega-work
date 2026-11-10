@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { CircleDot, ExternalLink, FolderKanban, LayoutDashboard, Settings } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { WorkspaceCommandPalette } from '@/components/work/workspace-command-palette';
 import {
    Sidebar,
    SidebarContent,
@@ -97,6 +98,7 @@ export function WorkspaceShell({ workspace, user, children }: WorkspaceShellProp
                   <p className="truncate text-sm font-semibold">{workspace.name}</p>
                   <p className="text-muted-foreground truncate text-xs">Saved private work</p>
                </div>
+               <WorkspaceCommandPalette workspaceId={workspace.id} />
                <Button variant="ghost" size="sm" asChild>
                   <Link href="/demo" target="_blank" rel="noopener noreferrer">
                      Demo
