@@ -70,7 +70,7 @@ export const workIssues = pgTable(
          .notNull()
          .references(() => workWorkspaces.id, { onDelete: 'cascade' }),
       projectId: uuid('project_id').notNull(),
-      number: bigint('number', { mode: 'number' }).notNull().generatedAlwaysAsIdentity(),
+      number: bigint('number', { mode: 'number' }).notNull(),
       title: text('title').notNull(),
       description: text('description'),
       status: text('status').notNull().default('open'),
@@ -83,7 +83,8 @@ export const workIssues = pgTable(
       index('work_issues_workspace_id_idx').on(table.workspaceId),
       index('work_issues_project_id_idx').on(table.projectId),
       index('work_issues_assignee_id_idx').on(table.assigneeId),
-      uniqueIndex('work_issues_number_key').on(table.number),
+      uniqueIndex('work_issues_workspace_number_key').on(table.workspaceId, table.number),
+      unique('work_issues_id_workspace_key').on(table.id, table.workspaceId),
       foreignKey({
          columns: [table.projectId, table.workspaceId],
          foreignColumns: [workProjects.id, workProjects.workspaceId],
@@ -105,9 +106,7 @@ export const workPullRequests = pgTable(
       workspaceId: uuid('workspace_id')
          .notNull()
          .references(() => workWorkspaces.id, { onDelete: 'cascade' }),
-      issueId: uuid('issue_id')
-         .notNull()
-         .references(() => workIssues.id, { onDelete: 'cascade' }),
+      issueId: uuid('issue_id').notNull(),
       repoOwner: text('repo_owner').notNull(),
       repoName: text('repo_name').notNull(),
       prNumber: integer('pr_number').notNull(),
@@ -130,12 +129,29 @@ export const workPullRequests = pgTable(
          table.prNumber
       ),
       index('work_pull_requests_workspace_id_idx').on(table.workspaceId),
+      foreignKey({
+         columns: [table.issueId, table.workspaceId],
+         foreignColumns: [workIssues.id, workIssues.workspaceId],
+         name: 'work_pull_requests_issue_workspace_fk',
+      }).onDelete('cascade'),
       check('work_pull_requests_pr_number_check', sql`${table.prNumber} > 0`),
       check(
          'work_pull_requests_state_check',
          sql`${table.state} is null or ${table.state} in ('open', 'closed', 'merged')`
       ),
    ]
+);
+
+export const workIssueNumberCounters = pgTable(
+   'work_issue_number_counters',
+   {
+      workspaceId: uuid('workspace_id')
+         .primaryKey()
+         .references(() => workWorkspaces.id, { onDelete: 'cascade' }),
+      lastNumber: bigint('last_number', { mode: 'number' }).notNull().default(0),
+      updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+   },
+   (table) => [index('work_issue_number_counters_workspace_id_idx').on(table.workspaceId)]
 );
 
 export const workGithubConnections = pgTable(

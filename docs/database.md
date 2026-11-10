@@ -30,6 +30,13 @@ workspace whose `owner_id = auth.uid()`. User-facing requests go through the
 request-scoped Supabase client with the signed-in user's session; the
 privileged migration connection is never used by application code.
 
+Issue numbers are allocated per workspace by a `SECURITY DEFINER` before-insert
+trigger that increments only the calling owner's counter and checks
+`auth.uid()`. The counter table is not exposed to either browser role. The
+human-readable identifier is `W-<number>` within that workspace; the same
+number can exist in another workspace. Pull requests reference
+`(issue_id, workspace_id)` so a link can never cross workspaces.
+
 ## Change and apply the schema
 
 1. Define the required tables in `db/schema.ts`. Add and review RLS policies and grants with the table changes; do not rely on client-side filtering for privacy.
@@ -40,11 +47,17 @@ privileged migration connection is never used by application code.
 ## Test migrations and RLS
 
 `pnpm test:db` creates a disposable database on the configured development
-instance, creates minimal `auth.uid()`/role stubs, applies the full committed
-migration history twice, and proves workspace uniqueness, row isolation for two
-users, anonymous denial, cross-workspace issue rejection, invalid-status
-rejection, and PR/issue status independence. It drops the database before exit
-and prints no credentials.
+instance, creates minimal `auth.uid()`/role stubs, and reproduces Supabase's
+default public-schema grants before applying the committed migration history.
+It then checks that every migration is recorded, that re-running the migrator
+applies nothing new, that RLS is enabled on all six tables, that `anon` has no
+table or journal-sequence access, and that the counter table is unreachable by
+browser roles. Two simulated users prove workspace uniqueness, per-workspace
+concurrent numbering, isolation for all six tables, anonymous denial,
+cross-workspace issue and PR rejection, invalid-status rejection, and PR/issue
+status independence. It drops the database before exit and prints no
+credentials. The migration SQL itself is not idempotent; the journal is what
+prevents re-application.
 
 In CI no development secret is available. The workflow starts the runner's local
 PostgreSQL service and sets:
@@ -54,7 +67,9 @@ TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres pnpm te
 ```
 
 The test script only accepts a non-local `TEST_DATABASE_URL` when
-`TEST_DATABASE_ALLOW_REMOTE=1` is set explicitly.
+`TEST_DATABASE_ALLOW_REMOTE=1` is set explicitly. On a local server it creates
+the `anon` and `authenticated` roles when they are missing; those roles are
+cluster-scoped, matching Supabase.
 
 ## Rollback and recovery
 
