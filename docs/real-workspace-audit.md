@@ -5,22 +5,23 @@ Scope: routes and actions reachable in the first private release. Checked agains
 
 ## Route inventory
 
-| Route                                   | Data                                     | Status                           |
-| --------------------------------------- | ---------------------------------------- | -------------------------------- |
-| `/`                                     | Marketing copy                           | Public                           |
-| `/login`                                | Supabase Auth                            | Public                           |
-| `/auth/callback`, `/auth/signout`       | Supabase Auth                            | Public, origin checked           |
-| `/me`                                   | Workspace bootstrap                      | Verified session                 |
-| `/w/[workspaceId]`                      | Saved counts and projects                | Verified owner                   |
-| `/w/[workspaceId]/projects`             | Saved projects + create                  | Verified owner                   |
-| `/w/[workspaceId]/projects/[projectId]` | Saved project + edit + issue create      | Verified owner                   |
-| `/w/[workspaceId]/issues/[issueId]`     | Saved issue + edit + explicit completion | Verified owner                   |
-| `/w/[workspaceId]/my-issues`            | Saved assigned issues                    | Verified owner                   |
-| `/w/[workspaceId]/settings`             | Workspace/account; GitHub disabled       | Verified owner                   |
-| `/api/workspaces/[workspaceId]/**`      | Projects, issues, search                 | Verified owner + same-origin     |
-| `/demo`                                 | Marketing demo overview                  | Public, labeled                  |
-| `/lndev-ui/**`                          | Circle fixtures                          | Public demo, persistent label    |
-| `/[orgId]/**` (other)                   | None                                     | Login required, then unavailable |
+| Route                                   | Data                                     | Status                                                                     |
+| --------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------- |
+| `/`                                     | Marketing copy                           | Public                                                                     |
+| `/login`                                | Supabase Auth                            | Public                                                                     |
+| `/auth/callback`                        | Supabase Auth                            | Public; link verification + internal redirect only                         |
+| `/auth/signout`                         | Supabase Auth                            | Public; trusted-origin POST                                                |
+| `/me`                                   | Workspace bootstrap                      | Verified session                                                           |
+| `/w/[workspaceId]`                      | Saved counts and projects                | Verified owner                                                             |
+| `/w/[workspaceId]/projects`             | Saved projects + create                  | Verified owner                                                             |
+| `/w/[workspaceId]/projects/[projectId]` | Saved project + edit + issue create      | Verified owner                                                             |
+| `/w/[workspaceId]/issues/[issueId]`     | Saved issue + edit + explicit completion | Verified owner                                                             |
+| `/w/[workspaceId]/my-issues`            | Saved assigned issues                    | Verified owner                                                             |
+| `/w/[workspaceId]/settings`             | Workspace/account; GitHub disabled       | Verified owner                                                             |
+| `/api/workspaces/[workspaceId]/**`      | Projects, issues, search                 | Verified owner + same-origin                                               |
+| `/demo`                                 | Sample-data overview                     | Public, visible demo label                                                 |
+| `/lndev-ui/**`                          | Circle fixtures                          | Public demo subtree, persistent label; bare `/lndev-ui` redirects to `/me` |
+| `/[orgId]/**` (other)                   | None                                     | Login required, then unavailable                                           |
 
 ## Action inventory
 
@@ -39,7 +40,7 @@ Scope: routes and actions reachable in the first private release. Checked agains
 
 - `scripts/workspace-boundary.test.mjs` scans real workspace source for
   `mock-data`, demo UI/store imports, the in-memory issue store, and links into
-  demo or unimplemented Circle routes. It also asserts the demo branch renders
+  demo or unimplemented Circle routes (including concatenated template literals). It also asserts the demo branch renders
   its children plus `<DemoBanner />`, that non-demo branches do not render
   fixture children, and that the demo interface shows a visible sample-data
   label. It is a source guard, not a render test.

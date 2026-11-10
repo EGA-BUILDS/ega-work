@@ -17,7 +17,7 @@ const FIXTURE_IMPORT =
    /(?:from\s*|import\s*\(\s*|require\s*\(\s*)['"][^'"]*(?:mock-data|components\/common|components\/home|components\/layout|(?:^|\/)store\/)[^'"]*['"]/;
 const FIXTURE_STORE = /useIssuesStore|issues-store/;
 const UNIMPLEMENTED_PATH =
-   /['"`]\/(?:lndev-ui|team|reviews|inbox|triage|initiatives|views|members|cycles)(?:[/'"`?]|$)/;
+   /\/(?:lndev-ui|team|reviews|inbox|triage|initiatives|views|members|cycles)(?:\/|['"`?]|$)/;
 
 async function sourceFiles(path) {
    const entries = await readdir(path, { withFileTypes: true });
