@@ -89,7 +89,7 @@ Use pnpm and preserve the lockfile. CI uses Node 22 and the pnpm version pinned 
 | Production build | `pnpm build` |
 | Serve an existing production build | `pnpm start` |
 
-Replace `<changed-files>` with explicit paths. `pnpm format` rewrites the whole repository; avoid it for a focused change. [CI](docs/ci.md) runs locked install, lint, typecheck, build, and `pnpm test:smoke` on PRs and main. The smoke test starts the production build and verifies rendered routes; it does not prove browser interactions or database persistence. Add focused tests when implementing behavior that needs them.
+Replace `<changed-files>` with explicit paths. `pnpm format` rewrites the whole repository; avoid it for a focused change. [CI](docs/ci.md) runs locked install, lint, typecheck, date regression tests, build, and `pnpm test:smoke` on every PR, branch push, and manual dispatch. The smoke test starts the production build and verifies rendered routes; it does not prove browser interactions or database persistence. Add focused tests when implementing behavior that needs them.
 
 - Documentation only: check the diff, local links, and commands. No application build is needed.
 - Code: start with focused lint and relevant tests. Run the type check for TypeScript changes and a production build for application, dependency, or build configuration changes.

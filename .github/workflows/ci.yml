@@ -35,6 +35,8 @@ jobs:
         run: pnpm lint
       - name: Typecheck
         run: pnpm typecheck
+      - name: Unit tests
+        run: pnpm test:unit
       - name: Production build
         run: pnpm build
       - name: Production smoke test

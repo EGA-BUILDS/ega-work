@@ -14,7 +14,7 @@ server.on('error', (error) => { spawnError = error; });
 for (const stream of [server.stdout, server.stderr]) {
   stream.on('data', (chunk) => {
     output = (output + chunk.toString()).slice(-16000);
-    origin ??= output.match(/http:\/\/127\.0\.0\.1:(\d+)/)?.[0];
+    origin ??= output.match(/http:\/\/127\.0\.0\.1:(\d+)(?=\s|\u001b)/)?.[0];
   });
 }
 
@@ -34,10 +34,10 @@ try {
   }
   assert.ok(ready, 'Production server must become ready within 30 seconds');
   const routes = [
-    ['/', ['Work overview', 'Demo data']],
-    ['/lndev-ui/my-issues', ['My issues']],
-    ['/lndev-ui/projects', ['Projects']],
-    ['/lndev-ui/reviews', ['Reviews']],
+    ['/', ['Work overview', 'Demo data', '<title>EGA Work — Demo workspace</title>']],
+    ['/lndev-ui/my-issues', ['Combobox: keyboard selection skips disabled options inconsistently']],
+    ['/lndev-ui/projects', ['LNDev UI - Core Components']],
+    ['/lndev-ui/reviews', ['fix(sheet): header truncation with long titles [LNUI-903]']],
   ];
   for (const [path, markers] of routes) {
     const response = await fetch(new URL(path, origin), { signal: AbortSignal.timeout(10000), redirect: 'manual' });

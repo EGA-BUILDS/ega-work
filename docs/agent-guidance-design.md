@@ -25,7 +25,7 @@ These are design choices for Work, based on primary sources checked on 2026-11-1
 - Review a recorded candidate revision. Give findings a trigger, impact, and location. Require independent review before merge without automatically spawning another agent.
 - Ship one user outcome through definition, implementation, proof, integration, and release. Apply only the stages authorized for the task.
 - Prove real saves, reloads, and access refusal when implementing persistence. Report Beta and Stable acceptance separately.
-- Name the commands that exist today. There is no test script or CI workflow at this baseline; a guide must not suggest otherwise.
+- Name the commands that exist today. The initial fork had no test script or CI workflow; the homepage change adds CI, date regression tests, and production smoke checks documented in [ci.md](ci.md).
 
 ## What this change establishes
 

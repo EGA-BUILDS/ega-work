@@ -1,8 +1,8 @@
 # CI and delivery
 
-[GitHub Actions](../.github/workflows/ci.yml) runs on every pull request, every branch push (including `main`), and manual dispatch. One required candidate check, **Check**, installs the frozen pnpm lockfile, lints, checks TypeScript, builds Next.js, then starts that build and checks rendered routes plus the existing missing-route redirect to home. A failed step fails the job. There are no path filters or allowed failures.
+[GitHub Actions](../.github/workflows/ci.yml) runs on every pull request, every branch push (including `main`), and manual dispatch. One required candidate check, **Check**, installs the frozen pnpm lockfile, lints, checks TypeScript, runs timezone regression tests, builds Next.js, then starts that build and checks rendered routes plus the existing missing-route redirect to home. A failed step fails the job. There are no path filters or allowed failures.
 
-Use Node 22 and the `packageManager` version in `package.json`. Run `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test:smoke` to reproduce. The smoke script owns and stops its server on an operating-system-assigned loopback port.
+Use Node 22 and the `packageManager` version in `package.json`. Run `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm build`, and `pnpm test:smoke` to reproduce. The smoke script owns and stops its server on an operating-system-assigned loopback port.
 
 The workflow uses read-only repository permissions and no application secrets. pnpm's download cache is keyed by the lockfile; build output is rebuilt each run. Superseded PR runs cancel; push runs remain independent. Branch pushes also validate the initial workflow before it reaches the default branch. The 15-minute timeout bounds a stuck run.
 

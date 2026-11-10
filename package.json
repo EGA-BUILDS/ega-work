@@ -10,7 +10,8 @@
     "format": "prettier --write .",
     "prepare": "husky install",
     "typecheck": "tsc --noEmit",
-    "test:smoke": "node scripts/smoke-production.mjs"
+    "test:smoke": "node scripts/smoke-production.mjs",
+    "test:unit": "node --experimental-strip-types --test scripts/home-date.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^4.1.2",

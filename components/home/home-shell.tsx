@@ -34,8 +34,7 @@ import {
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 
-/** Fixture workspace backing the existing routes and sidebar navigation. */
-const ORG_ID = 'lndev-ui';
+import { DEFAULT_ORG_ID as ORG_ID } from '@/components/home/demo-data';
 
 interface NavItem {
    label: string;

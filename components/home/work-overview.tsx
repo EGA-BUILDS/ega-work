@@ -16,7 +16,7 @@ import {
 import { Issue, issues } from '@/mock-data/issues';
 import { Review } from '@/mock-data/reviews';
 import { User } from '@/mock-data/users';
-import { format } from 'date-fns';
+import { formatHomeDate } from '@/lib/home-date';
 import { ArrowRight, CircleUserRound, Info, Search, SearchX, X } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -149,7 +149,7 @@ function ProjectsSection({ orgId }: { orgId: string }) {
 
 function ProjectRow({ summary, orgId }: { summary: ProjectSummary; orgId: string }) {
    const { project, issueCount, activeIssueCount } = summary;
-   const targetDate = project.targetDate ? new Date(project.targetDate) : undefined;
+   const targetDate = project.targetDate;
 
    return (
       <Link
@@ -190,7 +190,7 @@ function ProjectRow({ summary, orgId }: { summary: ProjectSummary; orgId: string
                <Initials user={project.lead} />
                <span className="hidden lg:inline">{project.lead.name}</span>
             </span>
-            {targetDate && <span className="w-14 text-right">{format(targetDate, 'MMM d')}</span>}
+            {targetDate && <span className="w-14 text-right">{formatHomeDate(targetDate)}</span>}
          </span>
       </Link>
    );
@@ -246,7 +246,7 @@ function IssuesSection({ orgId }: { orgId: string }) {
                         size="icon"
                         onClick={() => setQuery('')}
                         aria-label="Clear search"
-                        className="absolute right-2 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+                        className="absolute right-2 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
                      >
                         <X className="size-3.5" />
                      </Button>
@@ -361,7 +361,7 @@ function IssueRow({ issue, orgId }: { issue: Issue; orgId: string }) {
                </span>
             )}
             <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
-               {format(new Date(issue.createdAt), 'MMM d')}
+               {formatHomeDate(issue.createdAt)}
             </span>
             <Initials user={issue.assignee} />
          </Link>
@@ -509,7 +509,7 @@ function Initials({ user }: { user: User | null }) {
       .join('');
 
    return (
-      <Avatar className="size-6 shrink-0" title={user.name}>
+      <Avatar className="size-6 shrink-0" role="img" aria-label={user.name} title={user.name}>
          <AvatarFallback className="bg-muted text-[10px] font-medium text-muted-foreground">
             {initials}
          </AvatarFallback>
