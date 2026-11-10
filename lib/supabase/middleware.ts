@@ -59,9 +59,10 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
       userResult.error?.name === 'AuthUnknownError';
 
    if (!user && protectedRoute && !transientError) {
-      const redirectResponse = NextResponse.redirect(
-         new URL(loginPath(`${pathname}${search}`), request.url)
-      );
+      const redirectResponse = new NextResponse(null, {
+         status: 307,
+         headers: { Location: loginPath(`${pathname}${search}`) },
+      });
       copyAuthCookies(response, redirectResponse);
       return markNoStore(redirectResponse);
    }

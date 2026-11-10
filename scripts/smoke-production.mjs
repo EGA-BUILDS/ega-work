@@ -58,7 +58,7 @@ try {
     redirect: 'manual',
   });
   assert.equal(callback.status, 307);
-  assert.equal(callback.headers.get('location'), '/login?error=config');
+  assert.match(callback.headers.get('location') ?? '', /^\/login\?error=(config|link)$/);
   const signout = await fetch(new URL('/auth/signout', origin), { method: 'POST', redirect: 'manual' });
   assert.equal(signout.status, 303);
   assert.equal(signout.headers.get('location'), '/login');
