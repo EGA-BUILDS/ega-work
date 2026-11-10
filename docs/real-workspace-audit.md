@@ -37,12 +37,15 @@ Scope: routes and actions reachable in the first private release. Checked agains
 
 ## Guard checks
 
-- `scripts/workspace-boundary.test.mjs` fails if real workspace source imports
-  `mock-data`, uses the in-memory issue store, or links to demo/unimplemented
-  Circle routes. It also checks the demo label and non-demo unavailable state.
-- `pnpm test:smoke` checks that public routes render, the labeled demo renders,
-  guessed workspace and non-demo organization routes require login, and unknown
-  nested routes redirect home.
+- `scripts/workspace-boundary.test.mjs` scans real workspace source for
+  `mock-data`, demo UI/store imports, the in-memory issue store, and links into
+  demo or unimplemented Circle routes. It also asserts the demo branch renders
+  its children plus `<DemoBanner />`, that non-demo branches do not render
+  fixture children, and that the demo interface shows a visible sample-data
+  label. It is a source guard, not a render test.
+- `pnpm test:smoke` is the render-level check: public routes, the labeled demo,
+  login protection for guessed workspace and non-demo organization routes, and
+  the unknown-route redirect.
 - Direct `/[orgId]` routes other than the demo cannot render fixture children.
 
 ## Remaining intentional gaps
