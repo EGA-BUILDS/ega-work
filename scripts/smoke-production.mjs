@@ -35,9 +35,9 @@ try {
   assert.ok(ready, 'Production server must become ready within 30 seconds');
   const routes = [
     ['/', ['Work overview', 'Demo data']],
-    ['/lndev-ui/my-issues', ['<main']],
-    ['/lndev-ui/projects', ['<main']],
-    ['/lndev-ui/reviews', ['<main']],
+    ['/lndev-ui/my-issues', ['My issues']],
+    ['/lndev-ui/projects', ['Projects']],
+    ['/lndev-ui/reviews', ['Reviews']],
   ];
   for (const [path, markers] of routes) {
     const response = await fetch(new URL(path, origin), { signal: AbortSignal.timeout(10000), redirect: 'manual' });
