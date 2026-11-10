@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import { HomeShell } from '@/components/home/home-shell';
 
-export default function Home() {
-   redirect('lndev-ui/team/CORE/all');
+export default function HomePage() {
+   return <HomeShell />;
 }
