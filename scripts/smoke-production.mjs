@@ -34,7 +34,9 @@ try {
   }
   assert.ok(ready, 'Production server must become ready within 30 seconds');
   const routes = [
-    ['/', ['Work overview', 'Demo data', '<title>EGA Work — Demo workspace</title>']],
+    ['/', ['The work, in one clear record', 'Explore the demo']],
+    ['/demo', ['Work overview', 'Demo data', '<title>EGA Work — Demo workspace</title>']],
+    ['/login', ['Sign in to EGA Work']],
     ['/lndev-ui/my-issues', ['Combobox: keyboard selection skips disabled options inconsistently']],
     ['/lndev-ui/projects', ['LNDev UI - Core Components']],
     ['/lndev-ui/reviews', ['fix(sheet): header truncation with long titles [LNUI-903]']],

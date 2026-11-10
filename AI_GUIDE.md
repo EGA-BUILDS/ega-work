@@ -6,9 +6,9 @@
 
 Circle is a **Linear-inspired project management interface**: issues, projects, teams,
 cycles, members, documents and notifications — built as a **pure front-end template**.
-There is **no backend, no API, no database and no authentication**: every piece of data
-is fake, defined in TypeScript files under `mock-data/`, and all mutations happen
-in-memory through Zustand stores.
+The demo uses fake data defined under `mock-data/`, and its mutations happen
+in-memory through Zustand stores. EGA Work also has Supabase email authentication;
+see [docs/auth.md](docs/auth.md). Projects and issues are not yet persisted.
 
 ## Tech stack
 

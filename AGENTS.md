@@ -23,7 +23,7 @@ The starting code uses Next.js 15, React 19, TypeScript, Tailwind, shadcn/ui, an
 
 The first product journey is: sign in → create a private project → create an issue → link a GitHub PR → refresh its state → explicitly complete the issue → reload and confirm the saved result.
 
-Supabase and Work-native authentication are proposed backend choices in the planning specification, not implemented capabilities. Confirm the applicable issue and approved design before introducing them. Do not expand this slice into agent execution, team collaboration, or an EGA House rewrite.
+Supabase email authentication and its configuration are described in [docs/auth.md](docs/auth.md). A signed-in account does not yet have durable projects or issues. Do not expand this slice into agent execution, team collaboration, or an EGA House rewrite.
 
 Terms used here:
 
