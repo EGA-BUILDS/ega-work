@@ -25,6 +25,8 @@ The first product journey is: sign in → create a private project → create an
 
 Supabase email authentication and its configuration are described in [docs/auth.md](docs/auth.md). A signed-in account does not yet have durable projects or issues. Do not expand this slice into agent execution, team collaboration, or an EGA House rewrite.
 
+Development database configuration and Drizzle migrations are described in [docs/database.md](docs/database.md). The migration connection is privileged; user-facing data access must enforce verified identity and RLS.
+
 Terms used here:
 
 - **Project:** a private container for issues and repository links.
@@ -55,8 +57,9 @@ For framework changes, check the installed version and use [Next.js 15 documenta
 - Implement on a task branch from `main`. Preserve unrelated changes; use an isolated worktree when needed.
 - Read applicable host instructions before running commands. Coordinate installs, builds, and generated output with other users of the checkout.
 - Never reset, clean, overwrite, or delete unfamiliar work. Stop only processes you started and tracked; never kill by name pattern.
-- Keep credentials and private data out of code, logs, fixtures, screenshots, and reports. Configure external origins and callbacks instead of hardcoding an environment.
-- Code changes do not authorize merges, deployments, hosted migrations, credential changes, or destructive cleanup. Honor authorization already given for the task.
+- Agents have full authorization to read and use local environment files, including `.env.dev`, for project work without asking again. Keep environment files out of version control; do not expose credentials in logs, screenshots, or reports. Configure external origins and callbacks instead of hardcoding an environment.
+- Agents have full authorization to apply migrations needed for project work to the designated development database without asking again. Verify the target is the intended development database before writing; do not assume an environment file points to an isolated database.
+- Code changes do not authorize merges, deployments, production migrations, credential changes, or destructive cleanup. Honor authorization already given for the task.
 - Use subagents only when the user explicitly requests them. Independent review can be performed by a human or in a separate authorized review session.
 
 ## Make the change
@@ -118,7 +121,7 @@ Use this sequence. Stop at the task's authorized finish boundary; a request for 
 2. **Build it.** Connect the smallest complete journey through the actual application. Prove the first save and reload early when persistence is in scope.
 3. **Prove it.** Run the applicable checks and one important failure or permission case. Record commands, results, candidate SHA, environment, and remaining gaps. Complete the review above.
 4. **Integrate it.** When publication is authorized, open a focused PR to `main` with the outcome, validation, and risks. Before an authorized merge, verify the current candidate, independent review, and required checks. Record both the PR head and any tested synthetic merge SHA.
-5. **Release it.** When deployment and hosted writes are authorized, verify the target before migrations or acceptance writes. Prove the journey in Beta with isolated test data. Stable promotion is manual and requires its own authorization, target checks, migration compatibility, and recovery plan. Do not copy Beta records into Stable.
+5. **Release it.** Verify the target before migrations or acceptance writes. Development migrations are authorized as described above; deployment and other hosted writes require authorization. Prove the journey in Beta with isolated test data. Stable promotion is manual and requires its own authorization, target checks, migration compatibility, and recovery plan. Do not copy Beta records into Stable.
 
 For a database-backed journey, capture redacted evidence of the saved records, relationships, reload result, and cross-user refusal. A visible UI update or a successful HTTP response alone does not prove correct storage.
 
