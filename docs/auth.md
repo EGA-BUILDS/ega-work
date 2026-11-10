@@ -53,6 +53,7 @@ is not performed by this repository's tests.
 | `lib/supabase/middleware.ts` | Cookie refresh                                                          |
 | `lib/auth/redirect.ts`       | Same-origin return-path validation                                      |
 | `lib/auth/site-origin.ts`    | Trusted callback-origin resolution                                      |
+| `lib/auth/request-origin.ts` | Trusted same-origin check for state-changing requests                   |
 
 Flow:
 
@@ -120,8 +121,9 @@ configuration; they are not proven by these unit tests.
 
 ## Known limitations
 
-- No project, issue, or workspace persistence exists yet. `/me` intentionally
-  shows an empty state rather than mock or shared data.
+- Workspace, project, and issue persistence exists; see [workspace.md](workspace.md).
+  `/me` verifies the session, bootstraps the workspace, and redirects to
+  `/w/<workspace-id>`.
 - A PKCE magic link must normally be opened in the browser that requested it,
   because the code verifier lives in that browser's cookie.
 - There is no password setup or reset, OAuth, passkey, account-management, or admin surface.
