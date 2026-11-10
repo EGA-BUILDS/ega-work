@@ -62,7 +62,7 @@ try {
   assert.equal(callback.headers.get('location'), '/login?error=link');
   const personalSpace = await fetch(new URL('/me', origin), { redirect: 'manual' });
   assert.equal(personalSpace.status, 307, 'Signed-out users must be redirected to login');
-  assert.equal(personalSpace.headers.get('location'), '/login?next=%2Fme');
+  assert.equal(personalSpace.headers.get('location'), '/login');
   const signout = await fetch(new URL('/auth/signout', origin), { method: 'POST', redirect: 'manual' });
   assert.equal(signout.status, 303);
   assert.equal(signout.headers.get('location'), '/login');

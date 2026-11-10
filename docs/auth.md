@@ -49,9 +49,9 @@ is not performed by this repository's tests.
 | `app/auth/callback/route.ts` | Verifies a PKCE `code` or email `token_hash`, then redirects internally |
 | `app/auth/signout/route.ts`  | Same-origin POST sign-out                                               |
 | `app/me/page.tsx`            | Protected personal space with verified identity and honest empty state  |
-| `middleware.ts`              | Session refresh and `/me` protection                                    |
+| `middleware.ts`              | Session refresh                                                         |
 | `lib/supabase/server.ts`     | Request-scoped `@supabase/ssr` client backed by Next.js cookies         |
-| `lib/supabase/middleware.ts` | Cookie refresh and unauthenticated redirect                             |
+| `lib/supabase/middleware.ts` | Cookie refresh                                                          |
 | `lib/auth/redirect.ts`       | Same-origin return-path validation                                      |
 | `lib/auth/site-origin.ts`    | Trusted callback-origin resolution                                      |
 
@@ -69,8 +69,8 @@ success. Invalid credentials do not reveal whether an account exists.
 3. The link returns to `/auth/callback`. The route exchanges the code (or
    verifies a token hash) and writes the session cookies.
 4. The browser is redirected to the validated `next` path, or `/me` by default.
-5. `middleware.ts` refreshes the session on application requests and redirects
-   unauthenticated `/me` requests to `/login` with an internal return path.
+5. `middleware.ts` refreshes the session on application requests. The `/me`
+   page verifies the user and redirects unauthenticated requests to `/login`.
 
 ## Security boundaries
 
