@@ -1,6 +1,8 @@
 # Authentication and the personal space
 
-EGA Work uses Supabase Auth email magic links. The browser never supplies an
+EGA Work uses Supabase Auth email passwords and magic links. Password sign-in
+requires an existing account with a password in the configured Supabase project;
+magic-link-only accounts do not automatically have one. The browser never supplies an
 owner identity: `/me` renders only after the server verifies the session with
 Supabase. This slice does not add a workspace database, service-role access, or
 any hosted write.
@@ -43,7 +45,7 @@ is not performed by this repository's tests.
 | Path                         | Purpose                                                                 |
 | ---------------------------- | ----------------------------------------------------------------------- |
 | `app/login/page.tsx`         | Sign-in page, configuration state, link errors, authenticated redirect  |
-| `app/login/actions.ts`       | Server action that validates the email and calls `signInWithOtp`        |
+| `app/login/actions.ts`       | Server actions for password and magic-link sign-in                      |
 | `app/auth/callback/route.ts` | Verifies a PKCE `code` or email `token_hash`, then redirects internally |
 | `app/auth/signout/route.ts`  | Same-origin POST sign-out                                               |
 | `app/me/page.tsx`            | Protected personal space with verified identity and honest empty state  |
@@ -54,6 +56,10 @@ is not performed by this repository's tests.
 | `lib/auth/site-origin.ts`    | Trusted callback-origin resolution                                      |
 
 Flow:
+
+An existing account can also submit its email and password to the server action,
+which calls `signInWithPassword` and redirects to the validated internal path on
+success. Invalid credentials do not reveal whether an account exists.
 
 1. `/login` submits a server action with an email address and an optional
    internal `next` path.
@@ -118,6 +124,6 @@ configuration; they are not proven by these unit tests.
   shows an empty state rather than mock or shared data.
 - A PKCE magic link must normally be opened in the browser that requested it,
   because the code verifier lives in that browser's cookie.
-- There is no password, OAuth, passkey, account-management, or admin surface.
+- There is no password setup or reset, OAuth, passkey, account-management, or admin surface.
 - Email delivery, dashboard redirect allowlists, rate limits, and hosted session
   behavior must be verified in the target Supabase environment.

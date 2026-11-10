@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
    title: 'Sign in',
-   description: 'Sign in to EGA Work with an email magic link.',
+   description: 'Sign in to EGA Work with your password or an email link.',
 };
 
 type LoginSearchParams = {
@@ -52,8 +52,7 @@ export default async function LoginPage({
                   <CardHeader>
                      <h1 className="text-xl font-semibold tracking-tight">Sign in to EGA Work</h1>
                      <CardDescription className="text-muted-foreground text-sm">
-                        Email magic-link sign-in is unavailable until this environment is
-                        configured.
+                        Sign-in is unavailable until this environment is configured.
                      </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -83,7 +82,7 @@ export default async function LoginPage({
                <CardHeader>
                   <h1 className="text-xl font-semibold tracking-tight">Sign in to EGA Work</h1>
                   <CardDescription className="text-muted-foreground text-sm">
-                     Enter your email and we will send a magic link. No password is needed.
+                     Use your existing account password, or request a sign-in link.
                   </CardDescription>
                </CardHeader>
                <CardContent>

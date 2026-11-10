@@ -1,6 +1,7 @@
 'use server';
 
 import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 
 import { isValidEmail, normalizeEmail } from '@/lib/auth/email';
 import type { LoginActionState } from '@/lib/auth/login-state';
@@ -8,6 +9,42 @@ import { safeNextPath } from '@/lib/auth/redirect';
 import { resolveSiteOrigin } from '@/lib/auth/site-origin';
 import { readSupabaseConfig } from '@/lib/supabase/config';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+
+export async function signInWithPassword(
+   _previousState: LoginActionState,
+   formData: FormData
+): Promise<LoginActionState> {
+   const email = normalizeEmail(formData.get('email'));
+   const password = formData.get('password');
+   const nextValue = formData.get('next');
+   const next = safeNextPath(typeof nextValue === 'string' ? nextValue : null);
+
+   if (!isValidEmail(email) || typeof password !== 'string' || !password) {
+      return { status: 'error', message: 'Enter your email address and password.' };
+   }
+
+   const supabase = await createSupabaseServerClient();
+   if (!supabase) {
+      return { status: 'error', message: 'Authentication is not configured on this environment.' };
+   }
+
+   try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+         return {
+            status: 'error',
+            message:
+               error.status === 429
+                  ? 'Too many sign-in attempts. Wait a moment and try again.'
+                  : 'Could not sign in. Check your email and password or use a sign-in link.',
+         };
+      }
+   } catch {
+      return { status: 'error', message: 'We could not reach the sign-in service. Try again.' };
+   }
+
+   redirect(next);
+}
 
 function protocolFromOrigin(value: string | null): 'http' | 'https' | undefined {
    if (!value) {
