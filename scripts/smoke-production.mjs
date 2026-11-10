@@ -48,8 +48,9 @@ try {
     console.log(`PASS ${path}`);
   }
   const missing = await fetch(new URL('/lndev-ui/__ci_missing_route__', origin), { signal: AbortSignal.timeout(10000), redirect: 'manual' });
-  assert.equal(missing.status, 404, 'Unknown routes must not return a successful page');
-  console.log('PASS unknown route returns 404');
+  assert.equal(missing.status, 307, 'Unknown routes must use the existing home fallback');
+  assert.equal(missing.headers.get('location'), '/', 'Unknown routes must redirect to the homepage');
+  console.log('PASS unknown route redirects to home');
 } catch (error) {
   console.error(output);
   throw error;

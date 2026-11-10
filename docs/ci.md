@@ -1,6 +1,6 @@
 # CI and delivery
 
-[GitHub Actions](../.github/workflows/ci.yml) runs on every pull request, every branch push (including `main`), and manual dispatch. One required candidate check, **Check**, installs the frozen pnpm lockfile, lints, checks TypeScript, builds Next.js, then starts that build and checks rendered routes plus a missing-route failure. A failed step fails the job. There are no path filters or allowed failures.
+[GitHub Actions](../.github/workflows/ci.yml) runs on every pull request, every branch push (including `main`), and manual dispatch. One required candidate check, **Check**, installs the frozen pnpm lockfile, lints, checks TypeScript, builds Next.js, then starts that build and checks rendered routes plus the existing missing-route redirect to home. A failed step fails the job. There are no path filters or allowed failures.
 
 Use Node 22 and the `packageManager` version in `package.json`. Run `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, and `pnpm test:smoke` to reproduce. The smoke script owns and stops its server on an operating-system-assigned loopback port.
 
