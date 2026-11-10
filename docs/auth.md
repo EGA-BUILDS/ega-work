@@ -3,9 +3,8 @@
 EGA Work uses Supabase Auth email passwords and magic links. Password sign-in
 requires an existing account with a password in the configured Supabase project;
 magic-link-only accounts do not automatically have one. The browser never supplies an
-owner identity: `/me` renders only after the server verifies the session with
-Supabase. This slice does not add a workspace database, service-role access, or
-any hosted write.
+owner identity: `/me` verifies the session with Supabase, creates or retrieves the
+user's private workspace, and redirects into it. No service-role key is used.
 
 ## Configuration
 
@@ -48,12 +47,13 @@ is not performed by this repository's tests.
 | `app/login/actions.ts`       | Server actions for password and magic-link sign-in                      |
 | `app/auth/callback/route.ts` | Verifies a PKCE `code` or email `token_hash`, then redirects internally |
 | `app/auth/signout/route.ts`  | Same-origin POST sign-out                                               |
-| `app/me/page.tsx`            | Protected personal space with verified identity and honest empty state  |
+| `app/me/page.tsx`            | Verifies the session and enters the private workspace                   |
 | `middleware.ts`              | Session refresh                                                         |
 | `lib/supabase/server.ts`     | Request-scoped `@supabase/ssr` client backed by Next.js cookies         |
 | `lib/supabase/middleware.ts` | Cookie refresh                                                          |
 | `lib/auth/redirect.ts`       | Same-origin return-path validation                                      |
 | `lib/auth/site-origin.ts`    | Trusted callback-origin resolution                                      |
+| `lib/auth/request-origin.ts` | Trusted same-origin check for state-changing requests                   |
 
 Flow:
 
@@ -70,7 +70,8 @@ success. Invalid credentials do not reveal whether an account exists.
    verifies a token hash) and writes the session cookies.
 4. The browser is redirected to the validated `next` path, or `/me` by default.
 5. `middleware.ts` refreshes the session on application requests. The `/me`
-   page verifies the user and redirects unauthenticated requests to `/login`.
+   page verifies the user, bootstraps the workspace, and redirects to
+   `/w/<workspace-id>`; unauthenticated requests go to `/login`.
 
 ## Security boundaries
 
@@ -101,7 +102,7 @@ success. Invalid credentials do not reveal whether an account exists.
 | Expired or invalid link                   | Redirect to `/login?error=link` with a request-a-new-link message                      |
 | Transient session verification failure    | `/me` shows a retry state instead of trusting the request                              |
 | Sign-out failure                          | `/me?error=signout` reports that the session was not cleared                           |
-| No saved projects                         | Empty personal-space state; no mock or shared records are shown                        |
+| No saved projects                         | Workspace overview shows a genuine empty state; no mock records                        |
 
 ## Verification
 
@@ -120,8 +121,9 @@ configuration; they are not proven by these unit tests.
 
 ## Known limitations
 
-- No project, issue, or workspace persistence exists yet. `/me` intentionally
-  shows an empty state rather than mock or shared data.
+- Workspace, project, and issue persistence exists; see [workspace.md](workspace.md).
+  `/me` verifies the session, bootstraps the workspace, and redirects to
+  `/w/<workspace-id>`.
 - A PKCE magic link must normally be opened in the browser that requested it,
   because the code verifier lives in that browser's cookie.
 - There is no password setup or reset, OAuth, passkey, account-management, or admin surface.
