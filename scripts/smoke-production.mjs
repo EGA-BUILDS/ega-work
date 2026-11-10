@@ -6,6 +6,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 // Own the server lifecycle; never attach to an unrelated process on a fixed port.
 const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', '0'], {
   stdio: ['ignore', 'pipe', 'pipe'],
+  env: { ...process.env, SUPABASE_URL: 'https://example.supabase.co', SUPABASE_ANON_KEY: 'smoke-test-key' },
 });
 let output = '';
 let origin;
@@ -34,7 +35,9 @@ try {
   }
   assert.ok(ready, 'Production server must become ready within 30 seconds');
   const routes = [
-    ['/', ['Work overview', 'Demo data', '<title>EGA Work — Demo workspace</title>']],
+    ['/', ['The work, in one clear record', 'Explore the demo']],
+    ['/demo', ['Work overview', 'Demo data', '<title>EGA Work — Demo workspace</title>']],
+    ['/login', ['Sign in to EGA Work']],
     ['/lndev-ui/my-issues', ['Combobox: keyboard selection skips disabled options inconsistently']],
     ['/lndev-ui/projects', ['LNDev UI - Core Components']],
     ['/lndev-ui/reviews', ['fix(sheet): header truncation with long titles [LNUI-903]']],
@@ -51,6 +54,19 @@ try {
   assert.equal(missing.status, 307, 'Unknown routes must use the existing home fallback');
   assert.equal(missing.headers.get('location'), '/', 'Unknown routes must redirect to the homepage');
   console.log('PASS unknown route redirects to home');
+  const callback = await fetch(new URL('/auth/callback?next=%2F..%2F%2Fevil.example', origin), {
+    headers: { 'x-forwarded-host': 'public.example', 'x-forwarded-proto': 'https' },
+    redirect: 'manual',
+  });
+  assert.equal(callback.status, 307);
+  assert.equal(callback.headers.get('location'), '/login?error=link');
+  const personalSpace = await fetch(new URL('/me', origin), { redirect: 'manual' });
+  assert.equal(personalSpace.status, 307, 'Signed-out users must be redirected to login');
+  assert.equal(personalSpace.headers.get('location'), '/login');
+  const signout = await fetch(new URL('/auth/signout', origin), { method: 'POST', redirect: 'manual' });
+  assert.equal(signout.status, 303);
+  assert.equal(signout.headers.get('location'), '/login');
+  console.log('PASS auth redirects remain relative behind a proxy');
 } catch (error) {
   console.error(output);
   throw error;

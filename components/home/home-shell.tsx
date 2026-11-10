@@ -43,7 +43,7 @@ interface NavItem {
 }
 
 const WORK_NAV: NavItem[] = [
-   { label: 'Home', href: '/', icon: Home },
+   { label: 'Home', href: '/demo', icon: Home },
    { label: 'My issues', href: `/${ORG_ID}/my-issues`, icon: FolderKanban },
    { label: 'Reviews', href: `/${ORG_ID}/reviews`, icon: GitPullRequestArrow },
    { label: 'Inbox', href: `/${ORG_ID}/inbox`, icon: Inbox },
@@ -173,7 +173,7 @@ export function HomeShell() {
                </Sheet>
 
                <Link
-                  href="/"
+                  href="/demo"
                   aria-label="EGA Work home"
                   className="flex items-center gap-2 rounded-md px-1 py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                >

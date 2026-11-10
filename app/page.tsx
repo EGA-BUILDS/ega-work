@@ -1,27 +1,29 @@
 import type { Metadata } from 'next';
 
-import { HomeShell } from '@/components/home/home-shell';
+import { MarketingHome } from '@/components/marketing/marketing-home';
 
-const description = 'EGA Work demo workspace: explore sample projects, issues, and pull request observations.';
+const title = 'EGA Work — The work, in one clear record';
+const description =
+   'EGA Work is a quiet workspace for projects, issues, and pull request observations. Explore the sample demo or log in.';
 
 export const metadata: Metadata = {
-   title: { absolute: 'EGA Work — Demo workspace' },
+   title: { absolute: title },
    description,
    openGraph: {
       type: 'website',
-      title: 'EGA Work — Demo workspace',
+      title,
       description,
       siteName: 'EGA Work',
       images: [],
    },
    twitter: {
       card: 'summary',
-      title: 'EGA Work — Demo workspace',
+      title,
       description,
       images: [],
    },
 };
 
 export default function HomePage() {
-   return <HomeShell />;
+   return <MarketingHome />;
 }
