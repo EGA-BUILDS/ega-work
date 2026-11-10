@@ -54,8 +54,10 @@ export function IssueDetail({
             return;
          }
 
-         setTitle(payload.issue.title);
-         setDescription(payload.issue.description ?? '');
+         if (body.status === undefined) {
+            setTitle(payload.issue.title);
+            setDescription(payload.issue.description ?? '');
+         }
          setStatus(payload.issue.status);
          setVersion(payload.issue.version);
          setSaved(successMessage);

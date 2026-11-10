@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { isValidEmail, normalizeEmail } from '../lib/auth/email.ts';
 import { loginPath, safeNextPath } from '../lib/auth/redirect.ts';
+import { isTrustedRequestOrigin } from '../lib/auth/request-origin.ts';
 import { resolveSiteOrigin } from '../lib/auth/site-origin.ts';
 import { readSupabaseConfig } from '../lib/supabase/config.ts';
 
@@ -171,4 +172,64 @@ test('resolveSiteOrigin falls back to validated request headers', () => {
       ok: false,
       reason: 'missing',
    });
+});
+
+test('trusted request origins accept direct and proxied same-origin writes', () => {
+   const direct = resolveSiteOrigin({ host: '127.0.0.1:3000', defaultProtocol: 'http' });
+   assert.equal(
+      isTrustedRequestOrigin({
+         origin: 'http://127.0.0.1:3000',
+         expectedOrigin: direct.ok ? direct.origin : null,
+      }),
+      true
+   );
+
+   const proxied = resolveSiteOrigin({
+      forwardedHost: 'app.example.com',
+      forwardedProto: 'https',
+      host: 'internal:3000',
+   });
+   assert.equal(
+      isTrustedRequestOrigin({
+         origin: 'https://app.example.com',
+         expectedOrigin: proxied.ok ? proxied.origin : null,
+      }),
+      true
+   );
+
+   const configured = resolveSiteOrigin({ configured: 'https://ega.work' });
+   assert.equal(
+      isTrustedRequestOrigin({
+         origin: 'https://ega.work',
+         expectedOrigin: configured.ok ? configured.origin : null,
+      }),
+      true
+   );
+   assert.equal(
+      isTrustedRequestOrigin({
+         origin: null,
+         expectedOrigin: configured.ok ? configured.origin : null,
+      }),
+      true
+   );
+});
+
+test('trusted request origins reject cross-site, mismatched and unparseable origins', () => {
+   const expected = resolveSiteOrigin({ host: '127.0.0.1:3000', defaultProtocol: 'http' });
+   const expectedOrigin = expected.ok ? expected.origin : null;
+
+   assert.equal(
+      isTrustedRequestOrigin({
+         origin: 'http://127.0.0.1:3000',
+         fetchSite: 'cross-site',
+         expectedOrigin,
+      }),
+      false
+   );
+   assert.equal(isTrustedRequestOrigin({ origin: 'https://evil.example', expectedOrigin }), false);
+   assert.equal(isTrustedRequestOrigin({ origin: 'not a url', expectedOrigin }), false);
+   assert.equal(
+      isTrustedRequestOrigin({ origin: 'https://ega.work', expectedOrigin: null }),
+      false
+   );
 });

@@ -1,6 +1,8 @@
 import Link from 'next/link';
 
 import { AuthShell } from '@/components/auth/auth-shell';
+import { DemoBanner } from '@/components/home/demo-banner';
+import { DEFAULT_ORG_ID } from '@/components/home/demo-data';
 import { WorkspaceConfigState, WorkspaceUnavailableState } from '@/components/work/workspace-state';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -10,12 +12,31 @@ import { loadAccount } from '@/lib/work/page';
 export const dynamic = 'force-dynamic';
 
 /**
- * The Circle fixture routes under `/[orgId]` are not part of the private
- * workspace. Keep them reachable only as an honest unavailable state so a
- * direct URL cannot render demo records as personal data.
+ * `/[orgId]` handles two cases. The Circle fixture organization is the public,
+ * labeled demo and renders sample data with a persistent notice. Every other
+ * organization path is not part of the private workspace and renders an honest
+ * unavailable state, so a direct URL cannot surface fixtures as personal data.
  */
-export default async function LegacyCircleLayout({ children }: { children: React.ReactNode }) {
-   void children;
+export default async function LegacyCircleLayout({
+   children,
+   params,
+}: {
+   children: React.ReactNode;
+   params: Promise<{ orgId: string }>;
+}) {
+   const { orgId } = await params;
+
+   // The Circle fixture interface is the public, labeled demo. It is separate
+   // from `/w/<workspaceId>` and never reads private workspace records.
+   if (orgId === DEFAULT_ORG_ID) {
+      return (
+         <>
+            {children}
+            <DemoBanner />
+         </>
+      );
+   }
+
    const account = await loadAccount('/me');
 
    if (account.kind === 'config') {

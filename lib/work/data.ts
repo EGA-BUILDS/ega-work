@@ -25,6 +25,10 @@ function conflict(): never {
    throw new WorkDataError('conflict');
 }
 
+function normalizeIssue(row: WorkIssue): WorkIssue {
+   return { ...row, number: Number(row.number) };
+}
+
 export async function listProjects(
    supabase: SupabaseClient,
    workspaceId: string
@@ -110,7 +114,7 @@ export async function listProjectIssues(
       .order('number', { ascending: false });
 
    if (error) unavailable();
-   return (data ?? []) as WorkIssue[];
+   return ((data ?? []) as WorkIssue[]).map(normalizeIssue);
 }
 
 export async function listAssignedIssues(
@@ -126,7 +130,7 @@ export async function listAssignedIssues(
       .order('updated_at', { ascending: false });
 
    if (error) unavailable();
-   return (data ?? []) as WorkIssue[];
+   return ((data ?? []) as WorkIssue[]).map(normalizeIssue);
 }
 
 export async function getIssue(
@@ -143,7 +147,7 @@ export async function getIssue(
 
    if (error) unavailable();
    if (!data) notFound();
-   return data as WorkIssue;
+   return normalizeIssue(data as WorkIssue);
 }
 
 export async function createIssue(
@@ -169,7 +173,7 @@ export async function createIssue(
       .single();
 
    if (error || !data) unavailable();
-   return { ...(data as WorkIssue), number: Number((data as WorkIssue).number) };
+   return normalizeIssue(data as WorkIssue);
 }
 
 export async function updateIssue(
@@ -195,7 +199,7 @@ export async function updateIssue(
 
    if (error) unavailable();
    if (!data) conflict();
-   return { ...(data as WorkIssue), number: Number((data as WorkIssue).number) };
+   return normalizeIssue(data as WorkIssue);
 }
 
 export async function setIssueStatus(
@@ -216,7 +220,7 @@ export async function setIssueStatus(
 
    if (error) unavailable();
    if (!data) conflict();
-   return { ...(data as WorkIssue), number: Number((data as WorkIssue).number) };
+   return normalizeIssue(data as WorkIssue);
 }
 
 export async function countProjects(
@@ -242,61 +246,4 @@ export async function countOpenIssues(
       .eq('status', 'open');
    if (error) unavailable();
    return count ?? 0;
-}
-
-export type WorkspaceSearchResults = {
-   projects: WorkProject[];
-   issues: WorkIssue[];
-};
-
-export async function searchWorkspace(
-   supabase: SupabaseClient,
-   workspaceId: string,
-   rawQuery: string
-): Promise<WorkspaceSearchResults> {
-   const query = rawQuery.trim().slice(0, 100);
-   if (!query) {
-      return { projects: [], issues: [] };
-   }
-
-   const pattern = `%${query.replace(/[\\%_]/g, '\\$&')}%`;
-   const { data: projects, error: projectError } = await supabase
-      .from('work_projects')
-      .select('*')
-      .eq('workspace_id', workspaceId)
-      .ilike('name', pattern)
-      .order('updated_at', { ascending: false })
-      .limit(10);
-   if (projectError) unavailable();
-
-   const { data: titled, error: titleError } = await supabase
-      .from('work_issues')
-      .select('*')
-      .eq('workspace_id', workspaceId)
-      .ilike('title', pattern)
-      .order('updated_at', { ascending: false })
-      .limit(10);
-   if (titleError) unavailable();
-
-   const identifier = /^w-(\d+)$/i.exec(query);
-   let byNumber: WorkIssue[] = [];
-   if (identifier) {
-      const { data, error } = await supabase
-         .from('work_issues')
-         .select('*')
-         .eq('workspace_id', workspaceId)
-         .eq('number', Number(identifier[1]))
-         .limit(1);
-      if (error) unavailable();
-      byNumber = (data ?? []) as WorkIssue[];
-   }
-
-   const issues = [...byNumber, ...((titled ?? []) as WorkIssue[])]
-      .filter(
-         (issue, index, all) => all.findIndex((candidate) => candidate.id === issue.id) === index
-      )
-      .map((issue) => ({ ...issue, number: Number(issue.number) }))
-      .slice(0, 10);
-
-   return { projects: (projects ?? []) as WorkProject[], issues };
 }

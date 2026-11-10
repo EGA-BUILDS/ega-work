@@ -1,22 +1,14 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { markNoStore } from '@/lib/auth/http';
+import { isTrustedRequestOrigin } from '@/lib/auth/request-origin';
 import { resolveSiteOrigin } from '@/lib/auth/site-origin';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
-function isTrustedSignOutRequest(request: NextRequest): boolean {
-   const fetchSite = request.headers.get('sec-fetch-site');
-   if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none') {
-      return false;
-   }
-
-   const origin = request.headers.get('origin');
-   if (!origin) {
-      return true;
-   }
-
+/** Signs out only through a same-origin POST. */
+export async function POST(request: NextRequest): Promise<NextResponse> {
    const expected = resolveSiteOrigin({
       configured: process.env.SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL,
       forwardedHost: request.headers.get('x-forwarded-host'),
@@ -25,20 +17,13 @@ function isTrustedSignOutRequest(request: NextRequest): boolean {
       defaultProtocol: request.nextUrl.protocol === 'http:' ? 'http' : 'https',
    });
 
-   if (!expected.ok) {
-      return false;
-   }
-
-   try {
-      return new URL(origin).origin === expected.origin;
-   } catch {
-      return false;
-   }
-}
-
-/** Signs out only through a same-origin POST. */
-export async function POST(request: NextRequest): Promise<NextResponse> {
-   if (!isTrustedSignOutRequest(request)) {
+   if (
+      !isTrustedRequestOrigin({
+         origin: request.headers.get('origin'),
+         fetchSite: request.headers.get('sec-fetch-site'),
+         expectedOrigin: expected.ok ? expected.origin : null,
+      })
+   ) {
       return markNoStore(
          new NextResponse('Cross-origin sign-out is not allowed.', { status: 403 })
       );

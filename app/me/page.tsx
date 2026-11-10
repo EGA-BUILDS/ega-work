@@ -16,7 +16,16 @@ export const metadata: Metadata = {
    description: 'Your private EGA Work workspace, protected by a verified Supabase session.',
 };
 
-export default async function MePage() {
+type MeSearchParams = {
+   error?: string | string[];
+};
+
+function firstValue(value: string | string[] | undefined): string | undefined {
+   return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function MePage({ searchParams }: { searchParams: Promise<MeSearchParams> }) {
+   const params = await searchParams;
    const account = await loadAccount('/me');
 
    if (account.kind === 'config') {
@@ -36,6 +45,35 @@ export default async function MePage() {
 
    if (account.kind === 'unavailable') {
       return <VerificationError />;
+   }
+
+   if (firstValue(params.error) === 'signout') {
+      const workspace = await getOrCreateWorkspace(account.supabase, account.user);
+      return (
+         <AuthShell>
+            <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+               <Alert variant="destructive">
+                  <AlertTitle>Sign-out did not complete</AlertTitle>
+                  <AlertDescription>
+                     Your session could not be cleared, so you are still signed in. Try again, or
+                     close this browser.
+                  </AlertDescription>
+               </Alert>
+               <div className="flex flex-wrap gap-2">
+                  <form action="/auth/signout" method="post">
+                     <Button type="submit" variant="outline">
+                        Try signing out again
+                     </Button>
+                  </form>
+                  {workspace.ok ? (
+                     <Button asChild>
+                        <Link href={`/w/${workspace.workspace.id}`}>Continue to workspace</Link>
+                     </Button>
+                  ) : null}
+               </div>
+            </div>
+         </AuthShell>
+      );
    }
 
    const workspace = await getOrCreateWorkspace(account.supabase, account.user);

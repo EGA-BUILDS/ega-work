@@ -57,6 +57,11 @@ try {
       ['/', ['The work, in one clear record', 'Explore the demo']],
       ['/demo', ['Work overview', 'Demo data', '<title>EGA Work — Demo workspace</title>']],
       ['/login', ['Sign in to EGA Work']],
+      [
+         '/lndev-ui/my-issues',
+         ['Demo workspace.', 'Combobox: keyboard selection skips disabled options inconsistently'],
+      ],
+      ['/lndev-ui/projects', ['Demo workspace.', 'LNDev UI - Core Components']],
    ];
    for (const [path, markers] of routes) {
       const response = await fetch(new URL(path, origin), {
@@ -74,9 +79,7 @@ try {
    // Legacy Circle fixture routes and guessed workspace IDs must not render
    // private or demo records to a signed-out request.
    for (const path of [
-      '/lndev-ui/my-issues',
-      '/lndev-ui/projects',
-      '/lndev-ui/reviews',
+      '/lndev-ui-demo-is-not-a-workspace/my-issues',
       '/w/00000000-0000-4000-8000-000000000000',
    ]) {
       const response = await fetch(new URL(path, origin), {

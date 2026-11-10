@@ -5,6 +5,8 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 
 import { markNoStore } from '@/lib/auth/http';
+import { isTrustedRequestOrigin } from '@/lib/auth/request-origin';
+import { resolveSiteOrigin } from '@/lib/auth/site-origin';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 import { getWorkspaceForUser } from './auth';
@@ -28,23 +30,24 @@ export function jsonError(status: number, message: string): NextResponse {
 }
 
 /**
- * Rejects cross-site state-changing requests. Same-origin browser requests carry
- * an Origin header; requests with no Origin are accepted only when the browser
- * did not mark them cross-site.
+ * Rejects cross-site state-changing requests. The expected origin is resolved
+ * from trusted public headers, not Next's internal request origin, so direct
+ * 127.0.0.1 use and reverse proxies work.
  */
 export function isSameOrigin(request: NextRequest): boolean {
-   if (request.headers.get('sec-fetch-site') === 'cross-site') {
-      return false;
-   }
-   const origin = request.headers.get('origin');
-   if (!origin) {
-      return true;
-   }
-   try {
-      return new URL(origin).origin === request.nextUrl.origin;
-   } catch {
-      return false;
-   }
+   const expected = resolveSiteOrigin({
+      configured: process.env.SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL,
+      forwardedHost: request.headers.get('x-forwarded-host'),
+      forwardedProto: request.headers.get('x-forwarded-proto'),
+      host: request.headers.get('host'),
+      defaultProtocol: request.nextUrl.protocol === 'http:' ? 'http' : 'https',
+   });
+
+   return isTrustedRequestOrigin({
+      origin: request.headers.get('origin'),
+      fetchSite: request.headers.get('sec-fetch-site'),
+      expectedOrigin: expected.ok ? expected.origin : null,
+   });
 }
 
 export async function resolveApiContext(
@@ -61,8 +64,14 @@ export async function resolveApiContext(
    }
 
    const result = await supabase.auth.getUser().catch(() => null);
-   if (!result?.data.user) {
-      return { ok: false, response: jsonError(401, 'Sign in to continue.') };
+   if (!result) {
+      return { ok: false, response: jsonError(503, 'Workspace storage is unavailable.') };
+   }
+   if (!result.data.user) {
+      if (result.error?.name === 'AuthSessionMissingError' || !result.error) {
+         return { ok: false, response: jsonError(401, 'Sign in to continue.') };
+      }
+      return { ok: false, response: jsonError(503, 'Workspace storage is unavailable.') };
    }
 
    const lookup = await getWorkspaceForUser(supabase, result.data.user.id, workspaceId);
