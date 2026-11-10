@@ -114,6 +114,17 @@ try {
    });
    assert.equal(callback.status, 307);
    assert.equal(callback.headers.get('location'), '/login?error=link');
+   const recoveryCallback = await fetch(
+      new URL('/auth/callback?next=%2Faccount%2Fpassword&kind=recovery', origin),
+      { redirect: 'manual' }
+   );
+   assert.equal(recoveryCallback.status, 307);
+   const recoveryLocation = recoveryCallback.headers.get('location') ?? '';
+   assert.ok(recoveryLocation.startsWith('/login?'), 'expired recovery links return to login');
+   assert.ok(recoveryLocation.includes('error=link'), 'expired recovery links keep the error');
+   assert.ok(recoveryLocation.includes('kind=recovery'), 'expired recovery links keep their kind');
+   console.log('PASS expired recovery link returns to login with recovery context');
+
    const personalSpace = await fetch(new URL('/me', origin), { redirect: 'manual' });
    assert.equal(personalSpace.status, 307, 'Signed-out users must be redirected to login');
    assert.equal(personalSpace.headers.get('location'), '/login');

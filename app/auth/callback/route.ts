@@ -16,9 +16,16 @@ const ALLOWED_EMAIL_OTP_TYPES = new Set([
    'email_change',
 ]);
 
-function loginErrorRedirect(next: string, error: 'config' | 'link'): NextResponse {
+function loginErrorRedirect(
+   next: string,
+   error: 'config' | 'link',
+   kind?: 'recovery'
+): NextResponse {
    const url = new URL(loginPath(next), 'https://internal.invalid');
    url.searchParams.set('error', error);
+   if (kind) {
+      url.searchParams.set('kind', kind);
+   }
    return markNoStore(
       new NextResponse(null, { status: 307, headers: { Location: url.pathname + url.search } })
    );
@@ -35,23 +42,28 @@ function loginErrorRedirect(next: string, error: 'config' | 'link'): NextRespons
 export async function GET(request: NextRequest): Promise<NextResponse> {
    const params = request.nextUrl.searchParams;
    const next = safeNextPath(params.get('next'));
+   const kind = params.get('kind') === 'recovery' ? 'recovery' : undefined;
 
    if (!readSupabaseConfig().ok) {
-      return loginErrorRedirect(next, 'config');
+      return loginErrorRedirect(next, 'config', kind);
    }
 
    const supabase = await createSupabaseServerClient();
    if (!supabase) {
-      return loginErrorRedirect(next, 'config');
+      return loginErrorRedirect(next, 'config', kind);
    }
 
    const code = params.get('code');
    const tokenHash = params.get('token_hash');
    const type = params.get('type');
+   const flowId = params.get('sb_flow_id');
 
    try {
       if (code) {
-         const { error } = await supabase.auth.exchangeCodeForSession(code);
+         const { error } = await supabase.auth.exchangeCodeForSession(
+            code,
+            flowId ? { flowId } : undefined
+         );
          if (!error) {
             return markNoStore(
                new NextResponse(null, { status: 307, headers: { Location: next } })
@@ -71,5 +83,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       // Fall through to the retryable login state.
    }
 
-   return loginErrorRedirect(next, 'link');
+   return loginErrorRedirect(next, 'link', kind);
 }

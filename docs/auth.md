@@ -29,6 +29,8 @@ Supabase project setup, performed outside this repository:
 3. Add the callback URL to **Redirect URLs**:
    - `http://localhost:3000/auth/callback` for local development
    - `https://<production-origin>/auth/callback` for each deployed origin
+     Use exact origins, not wildcards. In production `SITE_URL` is required; email
+     links fail closed rather than trusting a client-supplied forwarded host.
 4. The default magic-link email template (`{{ .ConfirmationURL }}`) works with
    the PKCE `code` callback. A customized template can instead send:
 
@@ -78,9 +80,13 @@ success. Invalid credentials do not reveal whether an account exists.
 
 Password recovery uses the same callback. `/account/reset` calls
 `resetPasswordForEmail` with a callback whose `next` is `/account/password`.
-The response is generic for every valid address. After Supabase verifies the
-link, the signed-in user sets a password with `updateUser`; expired or reused
-links land on the retryable login state.
+Every provider-level outcome returns the same message, so the action does not
+reveal whether an account exists, whether it was recently emailed, or whether
+the mailer failed. The callback forwards Supabase's `sb_flow_id` to the PKCE
+code exchange so a second auth flow in the same browser cannot consume the
+wrong verifier. After Supabase verifies the link, the signed-in user sets a
+password with `updateUser`; expired or reused links land on the retryable login
+state with recovery-specific copy.
 
 ## Security boundaries
 
@@ -138,7 +144,13 @@ configuration; they are not proven by these unit tests.
   `/w/<workspace-id>`.
 - A PKCE magic link must normally be opened in the browser that requested it,
   because the code verifier lives in that browser's cookie.
-- Password setup/reset exists for existing accounts. OAuth, passkey, account
-  management, and admin surfaces do not.
+- Password setup/reset exists for existing accounts. Any verified session can
+  set a password; the app does not require a recent reauthentication or the
+  current password. Supabase's `GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION`
+  or `..._REQUIRE_CURRENT_PASSWORD` settings would block this flow; do not enable
+  them unless the form is changed to supply the required proof.
+- Recovery is protected by the provider's IP rate limit; there is no separate
+  application-level limiter.
+- OAuth, passkey, account management, and admin surfaces do not exist.
 - Email delivery, dashboard redirect allowlists, rate limits, and hosted session
   behavior must be verified in the target Supabase environment.

@@ -21,9 +21,14 @@ function protocolFromOrigin(value: string | null): 'http' | 'https' | undefined 
    }
 }
 
+const GENERIC_RECOVERY_MESSAGE =
+   'If an account exists for that address, we sent a recovery link. Open it in this browser to set a password.';
+
 /**
- * Requests a Supabase recovery link. The response is deliberately generic for
- * every valid email so it cannot be used to enumerate accounts.
+ * Requests a Supabase recovery link. Every provider-level outcome returns the
+ * same message. Supabase answers differently for unknown addresses and
+ * recently-emailed accounts, so surfacing a provider error would turn this
+ * action into an account-existence oracle.
  */
 export async function requestPasswordReset(
    _previousState: AccountActionState,
@@ -47,6 +52,7 @@ export async function requestPasswordReset(
       forwardedHost: requestHeaders.get('x-forwarded-host'),
       forwardedProto: requestHeaders.get('x-forwarded-proto'),
       host: requestHeaders.get('host'),
+      requireConfigured: process.env.NODE_ENV === 'production',
       defaultProtocol:
          protocolFromOrigin(requestHeaders.get('origin')) ??
          (process.env.NODE_ENV === 'production' ? 'https' : 'http'),
@@ -55,7 +61,8 @@ export async function requestPasswordReset(
    if (!siteOrigin.ok) {
       return {
          status: 'error',
-         message: 'Password recovery is misconfigured. SITE_URL must be a valid http(s) origin.',
+         message:
+            "Password recovery is misconfigured. Set SITE_URL to this deployment's https origin.",
       };
    }
 
@@ -69,29 +76,17 @@ export async function requestPasswordReset(
 
    const callbackUrl = new URL('/auth/callback', siteOrigin.origin);
    callbackUrl.searchParams.set('next', '/account/password');
+   callbackUrl.searchParams.set('kind', 'recovery');
 
    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      await supabase.auth.resetPasswordForEmail(email, {
          redirectTo: callbackUrl.toString(),
       });
-      if (error) {
-         return {
-            status: 'error',
-            message: 'We could not send a recovery link right now. Try again in a moment.',
-         };
-      }
    } catch {
-      return {
-         status: 'error',
-         message: 'We could not reach the recovery service. Try again in a moment.',
-      };
+      // Deliberately identical to success; see the comment above.
    }
 
-   return {
-      status: 'sent',
-      message:
-         'If an account exists for that address, we sent a recovery link. Open it in this browser to set a password.',
-   };
+   return { status: 'sent', message: GENERIC_RECOVERY_MESSAGE };
 }
 
 /** Sets or replaces the signed-in user's password after a recovery link. */
@@ -125,7 +120,10 @@ export async function updatePassword(
       if (error) {
          return {
             status: 'error',
-            message: 'The password was not changed. Request a new recovery link and try again.',
+            message:
+               error.code === 'reauthentication_needed'
+                  ? 'Sign in again before changing this account password.'
+                  : 'The password was not changed. Request a new recovery link and try again.',
          };
       }
    } catch {

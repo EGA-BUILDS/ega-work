@@ -20,10 +20,18 @@ test('new passwords must meet length and confirmation rules', () => {
       ok: false,
       error: 'The passwords do not match.',
    });
+   assert.equal(validateNewPassword('12345678', '12345678').ok, true);
+   assert.equal(validateNewPassword('1234567', '1234567').ok, false);
+   assert.equal(
+      validateNewPassword('x'.repeat(PASSWORD_MAX_LENGTH), 'x'.repeat(PASSWORD_MAX_LENGTH)).ok,
+      true
+   );
    assert.equal(
       validateNewPassword('x'.repeat(PASSWORD_MAX_LENGTH + 1), 'x'.repeat(PASSWORD_MAX_LENGTH + 1))
          .ok,
       false
    );
    assert.equal(validateNewPassword(null, null).ok, false);
+   assert.equal(validateNewPassword('long enough', null).ok, false);
+   assert.equal(validateNewPassword('        ', '        ').ok, false);
 });
