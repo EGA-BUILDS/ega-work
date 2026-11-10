@@ -21,15 +21,18 @@ export const metadata: Metadata = {
 type LoginSearchParams = {
    next?: string | string[];
    error?: string | string[];
+   kind?: string | string[];
 };
 
 function firstValue(value: string | string[] | undefined): string | undefined {
    return Array.isArray(value) ? value[0] : value;
 }
 
-function loginErrorMessage(code: string | undefined): string | undefined {
+function loginErrorMessage(code: string | undefined, kind: string | undefined): string | undefined {
    if (code === 'link') {
-      return 'That sign-in link is invalid or has expired. Request a new one.';
+      return kind === 'recovery'
+         ? 'That recovery link is invalid or has expired. Request a new one below.'
+         : 'That sign-in link is invalid or has expired. Request a new one.';
    }
 
    return undefined;
@@ -88,8 +91,16 @@ export default async function LoginPage({
                <CardContent>
                   <LoginForm
                      next={next}
-                     initialError={loginErrorMessage(firstValue(params.error))}
+                     initialError={loginErrorMessage(
+                        firstValue(params.error),
+                        firstValue(params.kind)
+                     )}
                   />
+                  <p className="mt-4 text-center text-sm">
+                     <Link href="/account/reset" className="underline underline-offset-4">
+                        Forgot your password?
+                     </Link>
+                  </p>
                </CardContent>
                <CardFooter>
                   <Button variant="ghost" size="sm" asChild>

@@ -96,6 +96,7 @@ export async function sendMagicLink(
       forwardedHost: requestHeaders.get('x-forwarded-host'),
       forwardedProto,
       host: requestHeaders.get('host'),
+      requireConfigured: process.env.NODE_ENV === 'production',
       defaultProtocol:
          protocolFromOrigin(requestHeaders.get('origin')) ??
          (process.env.NODE_ENV === 'production' ? 'https' : 'http'),
@@ -104,7 +105,7 @@ export async function sendMagicLink(
    if (!siteOrigin.ok) {
       return {
          status: 'error',
-         message: 'Sign-in is misconfigured. NEXT_PUBLIC_SITE_URL must be a valid http(s) origin.',
+         message: "Sign-in is misconfigured. Set SITE_URL to this deployment's https origin.",
       };
    }
 

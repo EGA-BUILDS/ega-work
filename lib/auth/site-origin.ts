@@ -8,6 +8,8 @@ type SiteOriginInput = Readonly<{
    forwardedProto?: string | null;
    host?: string | null;
    defaultProtocol?: 'http' | 'https';
+   /** Fail closed when no configured origin exists (production email links). */
+   requireConfigured?: boolean;
 }>;
 
 function firstHeaderValue(value: string | null | undefined): string | null {
@@ -55,6 +57,10 @@ export function resolveSiteOrigin(input: SiteOriginInput): SiteOriginResult {
       return origin
          ? { ok: true, origin, source: 'configured' }
          : { ok: false, reason: 'invalid_configured' };
+   }
+
+   if (input.requireConfigured) {
+      return { ok: false, reason: 'missing' };
    }
 
    const host = firstHeaderValue(input.forwardedHost) ?? firstHeaderValue(input.host);

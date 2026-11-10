@@ -57,6 +57,7 @@ try {
       ['/', ['The work, in one clear record', 'Explore the demo']],
       ['/demo', ['Work overview', 'Demo data', '<title>EGA Work — Demo workspace</title>']],
       ['/login', ['Sign in to EGA Work']],
+      ['/account/reset', ['Recover access']],
       [
          '/lndev-ui/my-issues',
          ['Demo workspace.', 'Combobox: keyboard selection skips disabled options inconsistently'],
@@ -81,6 +82,7 @@ try {
    for (const path of [
       '/lndev-ui-demo-is-not-a-workspace/my-issues',
       '/w/00000000-0000-4000-8000-000000000000',
+      '/account/password',
    ]) {
       const response = await fetch(new URL(path, origin), {
          signal: AbortSignal.timeout(10000),
@@ -112,6 +114,17 @@ try {
    });
    assert.equal(callback.status, 307);
    assert.equal(callback.headers.get('location'), '/login?error=link');
+   const recoveryCallback = await fetch(
+      new URL('/auth/callback?next=%2Faccount%2Fpassword&kind=recovery', origin),
+      { redirect: 'manual' }
+   );
+   assert.equal(recoveryCallback.status, 307);
+   const recoveryLocation = recoveryCallback.headers.get('location') ?? '';
+   assert.ok(recoveryLocation.startsWith('/login?'), 'expired recovery links return to login');
+   assert.ok(recoveryLocation.includes('error=link'), 'expired recovery links keep the error');
+   assert.ok(recoveryLocation.includes('kind=recovery'), 'expired recovery links keep their kind');
+   console.log('PASS expired recovery link returns to login with recovery context');
+
    const personalSpace = await fetch(new URL('/me', origin), { redirect: 'manual' });
    assert.equal(personalSpace.status, 307, 'Signed-out users must be redirected to login');
    assert.equal(personalSpace.headers.get('location'), '/login');

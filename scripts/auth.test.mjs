@@ -233,3 +233,14 @@ test('trusted request origins reject cross-site, mismatched and unparseable orig
       false
    );
 });
+
+test('production email links require a configured site origin', () => {
+   assert.deepEqual(resolveSiteOrigin({ host: 'app.example.com', requireConfigured: true }), {
+      ok: false,
+      reason: 'missing',
+   });
+   assert.deepEqual(
+      resolveSiteOrigin({ configured: 'https://ega.work', requireConfigured: true }),
+      { ok: true, origin: 'https://ega.work', source: 'configured' }
+   );
+});
