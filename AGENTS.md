@@ -75,13 +75,13 @@ For framework changes, check the installed version and use [Next.js 15 documenta
 
 ## Run the right checks
 
-Use pnpm and preserve the lockfile. These commands describe the starting repository; their presence is not a passing result.
+Use pnpm and preserve the lockfile. CI uses Node 22 and the pnpm version pinned in package.json; command availability is not a passing result.
 
 | Purpose | Command |
 | --- | --- |
 | Install locked dependencies | `pnpm install --frozen-lockfile` |
 | Start development server | `pnpm dev` |
-| Type check | `pnpm exec tsc --noEmit` |
+| Type check | `pnpm typecheck` |
 | Lint | `pnpm lint` |
 | Lint selected files | `pnpm exec eslint <changed-files>` |
 | Check selected formatting | `pnpm exec prettier --check <changed-files>` |
@@ -89,7 +89,7 @@ Use pnpm and preserve the lockfile. These commands describe the starting reposit
 | Production build | `pnpm build` |
 | Serve an existing production build | `pnpm start` |
 
-Replace `<changed-files>` with explicit paths. `pnpm format` rewrites the whole repository; avoid it for a focused change. No test script or CI workflow exists in the starting repository. Do not invent passing tests or assume a green CI gate exists. Add the necessary harness when implementing behavior that needs it.
+Replace `<changed-files>` with explicit paths. `pnpm format` rewrites the whole repository; avoid it for a focused change. [CI](docs/ci.md) runs locked install, lint, typecheck, build, and `pnpm test:smoke` on PRs and main. The smoke test starts the production build and verifies rendered routes; it does not prove browser interactions or database persistence. Add focused tests when implementing behavior that needs them.
 
 - Documentation only: check the diff, local links, and commands. No application build is needed.
 - Code: start with focused lint and relevant tests. Run the type check for TypeScript changes and a production build for application, dependency, or build configuration changes.
