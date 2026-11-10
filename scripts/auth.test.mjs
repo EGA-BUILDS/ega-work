@@ -21,6 +21,10 @@ test('safeNextPath rejects open redirects, control characters, and auth loops', 
       'http://evil.example/path',
       '//evil.example',
       '///evil.example',
+      '/..//evil.example',
+      '/.//evil.example',
+      '/a/..//evil.example',
+      '/%2e%2e//evil.example',
       '/\\evil.example',
       '\\evil.example',
       'javascript:alert(1)',
@@ -87,7 +91,13 @@ test('readSupabaseConfig returns missing and invalid states', () => {
 });
 
 test('readSupabaseConfig prefers runtime server names and normalizes the URL', () => {
-   assert.equal(readSupabaseConfig({ NEXT_PUBLIC_SUPABASE_URL: 'https://abc.supabase.co', NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_example' }).ok, true);
+   assert.equal(
+      readSupabaseConfig({
+         NEXT_PUBLIC_SUPABASE_URL: 'https://abc.supabase.co',
+         NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_example',
+      }).ok,
+      true
+   );
    assert.deepEqual(
       readSupabaseConfig({
          SUPABASE_URL: 'https://runtime.supabase.co/',

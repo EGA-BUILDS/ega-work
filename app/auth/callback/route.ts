@@ -16,14 +16,12 @@ const ALLOWED_EMAIL_OTP_TYPES = new Set([
    'email_change',
 ]);
 
-function loginErrorRedirect(
-   request: NextRequest,
-   next: string,
-   error: 'config' | 'link'
-): NextResponse {
-   const url = new URL(loginPath(next), request.url);
+function loginErrorRedirect(next: string, error: 'config' | 'link'): NextResponse {
+   const url = new URL(loginPath(next), 'https://internal.invalid');
    url.searchParams.set('error', error);
-   return markNoStore(NextResponse.redirect(url));
+   return markNoStore(
+      new NextResponse(null, { status: 307, headers: { Location: url.pathname + url.search } })
+   );
 }
 
 /**
@@ -39,12 +37,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
    const next = safeNextPath(params.get('next'));
 
    if (!readSupabaseConfig().ok) {
-      return loginErrorRedirect(request, next, 'config');
+      return loginErrorRedirect(next, 'config');
    }
 
    const supabase = await createSupabaseServerClient();
    if (!supabase) {
-      return loginErrorRedirect(request, next, 'config');
+      return loginErrorRedirect(next, 'config');
    }
 
    const code = params.get('code');
@@ -55,19 +53,23 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       if (code) {
          const { error } = await supabase.auth.exchangeCodeForSession(code);
          if (!error) {
-            return markNoStore(NextResponse.redirect(new URL(next, request.url)));
+            return markNoStore(
+               new NextResponse(null, { status: 307, headers: { Location: next } })
+            );
          }
       }
 
       if (tokenHash && type && ALLOWED_EMAIL_OTP_TYPES.has(type)) {
          const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
          if (!error) {
-            return markNoStore(NextResponse.redirect(new URL(next, request.url)));
+            return markNoStore(
+               new NextResponse(null, { status: 307, headers: { Location: next } })
+            );
          }
       }
    } catch {
       // Fall through to the retryable login state.
    }
 
-   return loginErrorRedirect(request, next, 'link');
+   return loginErrorRedirect(next, 'link');
 }

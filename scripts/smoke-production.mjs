@@ -53,6 +53,16 @@ try {
   assert.equal(missing.status, 307, 'Unknown routes must use the existing home fallback');
   assert.equal(missing.headers.get('location'), '/', 'Unknown routes must redirect to the homepage');
   console.log('PASS unknown route redirects to home');
+  const callback = await fetch(new URL('/auth/callback?next=%2F..%2F%2Fevil.example', origin), {
+    headers: { 'x-forwarded-host': 'public.example', 'x-forwarded-proto': 'https' },
+    redirect: 'manual',
+  });
+  assert.equal(callback.status, 307);
+  assert.equal(callback.headers.get('location'), '/login?error=config');
+  const signout = await fetch(new URL('/auth/signout', origin), { method: 'POST', redirect: 'manual' });
+  assert.equal(signout.status, 303);
+  assert.equal(signout.headers.get('location'), '/login');
+  console.log('PASS auth redirects remain relative behind a proxy');
 } catch (error) {
   console.error(output);
   throw error;

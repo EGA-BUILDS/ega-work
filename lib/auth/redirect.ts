@@ -34,7 +34,7 @@ export function safeNextPath(
       return fallback;
    }
 
-   if (url.origin !== SAFE_INTERNAL_ORIGIN) {
+   if (url.origin !== SAFE_INTERNAL_ORIGIN || url.pathname.startsWith('//')) {
       return fallback;
    }
 

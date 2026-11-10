@@ -153,10 +153,6 @@ export default async function MePage({ searchParams }: { searchParams: Promise<M
                         <dd className="font-mono text-xs break-all">{user.id}</dd>
                      </div>
                      <div className="grid gap-1">
-                        <dt className="text-muted-foreground">Sign-in method</dt>
-                        <dd>Email magic link</dd>
-                     </div>
-                     <div className="grid gap-1">
                         <dt className="text-muted-foreground">Last sign-in</dt>
                         <dd>{formatTimestamp(user.last_sign_in_at)}</dd>
                      </div>

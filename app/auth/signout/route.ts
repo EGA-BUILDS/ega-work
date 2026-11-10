@@ -50,15 +50,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
          const { error } = await supabase.auth.signOut();
          if (error) {
             return markNoStore(
-               NextResponse.redirect(new URL('/me?error=signout', request.url), 303)
+               new NextResponse(null, { status: 303, headers: { Location: '/me?error=signout' } })
             );
          }
       } catch {
          return markNoStore(
-            NextResponse.redirect(new URL('/me?error=signout', request.url), 303)
+            new NextResponse(null, { status: 303, headers: { Location: '/me?error=signout' } })
          );
       }
    }
 
-   return markNoStore(NextResponse.redirect(new URL('/login', request.url), 303));
+   return markNoStore(new NextResponse(null, { status: 303, headers: { Location: '/login' } }));
 }
