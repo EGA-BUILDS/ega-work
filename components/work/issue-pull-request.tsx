@@ -240,6 +240,15 @@ export function IssuePullRequest({
                </div>
             ) : null}
 
+            {initialView.status === 'connected' && !pullRequest && initialView.needsRelink ? (
+               <Alert>
+                  <AlertDescription>
+                     GitHub access changed. The previously linked pull request was hidden and must
+                     be relinked.
+                  </AlertDescription>
+               </Alert>
+            ) : null}
+
             {initialView.status === 'connected' && !pullRequest ? (
                <form onSubmit={onLink} className="flex flex-col gap-3">
                   <div className="grid gap-2">

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+   isPullRequestVisible,
    presentInstallation,
    presentPullRequest,
    presentPullRequestError,
@@ -155,6 +156,28 @@ test('connection status is honest about configuration and usability', () => {
       token_ciphertext: null,
    });
    assert.equal(missingToken.status, 'reauthorization_required');
+});
+
+test('read-path projection requires a usable connection and matching generation', () => {
+   const connection = {
+      revoked_at: null,
+      token_ciphertext: 'cipher',
+      installation_id: '12345',
+      connection_generation: 4,
+   };
+   const visible = row({ connection_generation: 4, hidden: false });
+
+   assert.equal(isPullRequestVisible(connection, visible), true);
+   assert.equal(isPullRequestVisible(null, visible), false);
+   assert.equal(isPullRequestVisible(connection, null), false);
+   assert.equal(
+      isPullRequestVisible({ ...connection, revoked_at: '2026-11-11T11:00:00Z' }, visible),
+      false
+   );
+   assert.equal(isPullRequestVisible({ ...connection, token_ciphertext: null }, visible), false);
+   assert.equal(isPullRequestVisible({ ...connection, installation_id: null }, visible), false);
+   assert.equal(isPullRequestVisible(connection, { ...visible, hidden: true }), false);
+   assert.equal(isPullRequestVisible(connection, { ...visible, connection_generation: 3 }), false);
 });
 
 test('installation sanitization keeps only display fields', () => {

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { Pool, type PoolClient } from 'pg';
 
 import type { GithubConfig } from './config';
-import { classifyConnectionToken } from './token';
+import { classifyConnectionToken } from './token.ts';
 import type { GithubConnectionRecord, GithubOauthStateRecord, PullRequestRecord } from './types';
 
 type Context = Readonly<{ workspaceId: string; userId: string }>;
@@ -98,6 +98,15 @@ async function readyPool(config: GithubConfig): Promise<Pool> {
    const pool = getPool(config);
    await globalForGithub.__egaWorkGithubPool?.ready;
    return pool;
+}
+
+/** Closes the cached pool. Used by the disposable database harness. */
+export async function closeGithubPool(): Promise<void> {
+   const cached = globalForGithub.__egaWorkGithubPool;
+   globalForGithub.__egaWorkGithubPool = undefined;
+   if (cached) {
+      await cached.pool.end().catch(() => {});
+   }
 }
 
 async function withContext<T>(
@@ -239,7 +248,6 @@ export async function saveConnection(
          if (current.connection_generation !== input.stateGeneration) {
             return { kind: 'stale' };
          }
-         const sameProvider = current.provider_user_id === input.providerUserId;
          const result = await client.query<GithubConnectionRecord>(
             `update work_github_connections
              set provider_user_id = $2,
@@ -278,16 +286,10 @@ export async function saveConnection(
          );
          const saved = result.rows[0];
 
-         if (sameProvider) {
-            await client.query(
-               `update work_pull_requests
-                set connection_generation = $2, updated_at = now()
-                where workspace_id = $1`,
-               [input.workspaceId, saved.connection_generation]
-            );
-         } else {
-            await saveHiddenPullRequests(client, input.workspaceId);
-         }
+         // Re-authorization always invalidates cached observations, even for
+         // the same GitHub account: the new token/generation may expose a
+         // different repository set, so an explicit relink is required.
+         await saveHiddenPullRequests(client, input.workspaceId);
 
          return { kind: 'saved', row: saved };
       }
@@ -318,32 +320,74 @@ export async function saveConnection(
          ]
       );
       const inserted = result.rows[0];
-      await client.query(
-         `update work_pull_requests
-          set connection_generation = $2, updated_at = now()
-          where workspace_id = $1`,
-         [input.workspaceId, inserted.connection_generation]
-      );
+      await saveHiddenPullRequests(client, input.workspaceId);
       return { kind: 'saved', row: inserted };
    });
 }
 
+export type InstallationSelectionResult =
+   | { kind: 'saved'; row: GithubConnectionRecord; hiddenCount: number }
+   | { kind: 'unchanged'; row: GithubConnectionRecord }
+   | { kind: 'conflict' }
+   | { kind: 'stale' }
+   | { kind: 'missing' };
+
+/**
+ * Switches the selected App installation. The connection row is locked for
+ * the whole transaction so the generation bump and PR invalidation cannot be
+ * observed separately: any refresh or link that raced against the old
+ * generation will finalize zero rows. A non-null refresh lease (active or
+ * stalled) blocks the switch instead of being cleared or replayed.
+ */
 export async function selectInstallation(
    config: GithubConfig,
    input: Readonly<{ workspaceId: string; installationId: number; generation: number }>
-): Promise<GithubConnectionRecord | null> {
+): Promise<InstallationSelectionResult> {
    return withContext(config, { workspaceId: input.workspaceId }, async (client) => {
-      const result = await client.query<GithubConnectionRecord>(
+      const current = await client.query<GithubConnectionRecord>(
+         'select * from work_github_connections where workspace_id = $1 for update',
+         [input.workspaceId]
+      );
+      const row = firstRow(current.rows);
+      if (!row || row.revoked_at || !row.token_ciphertext || !row.token_iv || !row.token_tag) {
+         return { kind: 'missing' };
+      }
+      if (row.connection_generation !== input.generation) {
+         return { kind: 'stale' };
+      }
+      if (row.refresh_lease_id !== null) {
+         return { kind: 'conflict' };
+      }
+      if (
+         row.installation_id !== null &&
+         String(row.installation_id) === String(input.installationId)
+      ) {
+         return { kind: 'unchanged', row };
+      }
+
+      const visible = await client.query<{ count: number }>(
+         `select count(*)::int as count
+          from work_pull_requests
+          where workspace_id = $1 and hidden = false`,
+         [input.workspaceId]
+      );
+
+      const updated = await client.query<GithubConnectionRecord>(
          `update work_github_connections
-          set installation_id = $3, updated_at = now()
-          where workspace_id = $1
-            and connection_generation = $2
-            and revoked_at is null
-            and token_ciphertext is not null
+          set installation_id = $3,
+              connection_generation = connection_generation + 1,
+              updated_at = now()
+          where workspace_id = $1 and connection_generation = $2
           returning *`,
          [input.workspaceId, input.generation, input.installationId]
       );
-      return firstRow(result.rows);
+      const saved = firstRow(updated.rows);
+      if (!saved) {
+         return { kind: 'stale' };
+      }
+
+      await saveHiddenPullRequests(client, input.workspaceId);
+      return { kind: 'saved', row: saved, hiddenCount: visible.rows[0]?.count ?? 0 };
    });
 }
 

@@ -98,5 +98,6 @@ export type GithubIssueView = Readonly<{
    configured: boolean;
    status: GithubConnectionStatus;
    pullRequest: GithubPullRequestView | null;
+   needsRelink: boolean;
    installUrl: string | null;
 }>;

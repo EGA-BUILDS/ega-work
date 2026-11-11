@@ -41,11 +41,11 @@ export async function POST(
    }
 
    try {
-      const status = await chooseGithubInstallation(
+      const result = await chooseGithubInstallation(
          { workspaceId: access.context.workspace.id, userId: access.context.user.id },
          body.installationId
       );
-      return jsonResponse({ status });
+      return jsonResponse(result);
    } catch (error) {
       return githubErrorResponse(error);
    }

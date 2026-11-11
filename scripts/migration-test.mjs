@@ -24,10 +24,14 @@ import { parseEnv } from 'node:util';
 import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import * as githubStore from '../lib/work/github/store.ts';
+import { getGithubIssueView } from '../lib/work/github/service.ts';
 import { validateDevDatabaseTarget } from './dev-database-target.mjs';
 
 const USER_A = '00000000-0000-4000-8000-00000000000a';
 const USER_B = '00000000-0000-4000-8000-00000000000b';
+const USER_C = '00000000-0000-4000-8000-00000000000c';
+const USER_D = '00000000-0000-4000-8000-00000000000d';
 const WORK_TABLES = [
    'work_workspaces',
    'work_projects',
@@ -151,7 +155,11 @@ async function main() {
    try {
       v1Folder = await writeV1Migrations();
       await testUpgrade({ adminUrl, ssl, adminPool, databases, v1Folder });
-      await testFresh({ adminUrl, ssl, adminPool, databases });
+      const hostname = adminUrl.hostname.replace(/^\[|\]$/g, '');
+      const runRealPaths =
+         Boolean(process.env.TEST_DATABASE_URL) &&
+         ['localhost', '127.0.0.1', '::1'].includes(hostname);
+      await testFresh({ adminUrl, ssl, adminPool, databases, runRealPaths });
       console.log('PASS migration 0002, RLS, runtime role, constraints, and CAS races verified');
    } finally {
       if (v1Folder) {
@@ -292,7 +300,7 @@ async function testUpgrade({ adminUrl, ssl, adminPool, databases, v1Folder }) {
    }
 }
 
-async function testFresh({ adminUrl, ssl, adminPool, databases }) {
+async function testFresh({ adminUrl, ssl, adminPool, databases, runRealPaths }) {
    const name = await createDatabase(adminPool, 'ega_work_test');
    databases.push(name);
    const childUrl = new URL(adminUrl.toString());
@@ -793,6 +801,14 @@ async function testFresh({ adminUrl, ssl, adminPool, databases }) {
       );
 
       await testCasRaces(pool, { workspaceA, issueA2, prA });
+
+      if (runRealPaths) {
+         await testStoreAndService({ pool, adminUrl, databaseName: name });
+      } else {
+         console.log(
+            'SKIP real store/service paths: TEST_DATABASE_URL is not a local disposable server'
+         );
+      }
    } finally {
       await pool.end();
    }
@@ -1138,6 +1154,508 @@ async function testCasRaces(pool, { workspaceA, issueA2, prA }) {
    console.log(
       'PASS CAS races: single-winner leases, stalled lease, unlink, disconnect, generation'
    );
+}
+
+async function testStoreAndService({ pool, adminUrl, databaseName }) {
+   const role = `ega_work_gh_${Date.now()}_${randomBytes(3).toString('hex')}`;
+   const password = randomBytes(12).toString('hex');
+   await pool.query(
+      `create role "${role}" login password '${password}' in role work_github_runtime`
+   );
+
+   const databaseUrl = new URL(adminUrl.toString());
+   databaseUrl.username = role;
+   databaseUrl.password = password;
+   databaseUrl.pathname = `/${databaseName}`;
+   databaseUrl.search = '';
+   databaseUrl.hash = '';
+   const key = Buffer.alloc(32, 11);
+   const config = {
+      clientId: 'test-client-id-1234',
+      clientSecret: 'test-client-secret-0123456789',
+      appSlug: 'ega-work-test',
+      tokenEncryptionKey: key,
+      databaseUrl: databaseUrl.toString(),
+      databaseCa: null,
+   };
+
+   const envKeys = [
+      'NODE_ENV',
+      'GITHUB_APP_CLIENT_ID',
+      'GITHUB_APP_CLIENT_SECRET',
+      'GITHUB_APP_SLUG',
+      'WORK_TOKEN_ENCRYPTION_KEY',
+      'WORK_GITHUB_DATABASE_URL',
+      'WORK_GITHUB_DATABASE_CA_BASE64',
+   ];
+   const previousEnv = Object.fromEntries(envKeys.map((name) => [name, process.env[name]]));
+   process.env.NODE_ENV = 'test';
+   process.env.GITHUB_APP_CLIENT_ID = config.clientId;
+   process.env.GITHUB_APP_CLIENT_SECRET = config.clientSecret;
+   process.env.GITHUB_APP_SLUG = config.appSlug;
+   process.env.WORK_TOKEN_ENCRYPTION_KEY = key.toString('base64');
+   process.env.WORK_GITHUB_DATABASE_URL = config.databaseUrl;
+   delete process.env.WORK_GITHUB_DATABASE_CA_BASE64;
+
+   const token = (label) => ({
+      accessCiphertext: `cipher-${label}`,
+      accessIv: `iv-${label}`,
+      accessTag: `tag-${label}`,
+      accessExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      refreshCiphertext: `refresh-cipher-${label}`,
+      refreshIv: `refresh-iv-${label}`,
+      refreshTag: `refresh-tag-${label}`,
+      refreshExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+   });
+
+   try {
+      const workspace = await asUser(pool, USER_C, async (client) => {
+         const result = await client.query(
+            `insert into work_workspaces (owner_id, name) values ($1, 'Store workspace') returning id`,
+            [USER_C]
+         );
+         return result.rows[0].id;
+      });
+      const project = await asUser(pool, USER_C, async (client) => {
+         const result = await client.query(
+            `insert into work_projects (workspace_id, name) values ($1, 'Store project') returning id`,
+            [workspace]
+         );
+         return result.rows[0].id;
+      });
+      const createIssue = async (title) =>
+         asUser(pool, USER_C, async (client) => {
+            const result = await client.query(
+               `insert into work_issues (workspace_id, project_id, title) values ($1, $2, $3) returning id`,
+               [workspace, project, title]
+            );
+            return result.rows[0].id;
+         });
+      const issueOne = await createIssue('Store issue one');
+      const issueTwo = await createIssue('Store issue two');
+
+      const connected = await githubStore.saveConnection(config, {
+         workspaceId: workspace,
+         stateGeneration: 0,
+         providerUserId: '100',
+         login: 'octocat',
+         ...token('one'),
+      });
+      assert(connected.kind === 'saved', 'saveConnection must create the connection');
+      assert(
+         connected.row.connection_generation === 1,
+         'a new connection must start at generation 1'
+      );
+
+      const installationA = await githubStore.selectInstallation(config, {
+         workspaceId: workspace,
+         installationId: 1001,
+         generation: 1,
+      });
+      assert(installationA.kind === 'saved', 'the first installation selection must save');
+      const generationA = installationA.row.connection_generation;
+      assert(
+         generationA === 2 && installationA.hiddenCount === 0,
+         'first switch has nothing to hide'
+      );
+
+      const linkOne = await githubStore.insertPullRequest(config, {
+         workspaceId: workspace,
+         userId: USER_C,
+         issueId: issueOne,
+         owner: 'ega-builds',
+         repo: 'ega-work',
+         number: 1,
+         url: 'https://github.com/ega-builds/ega-work/pull/1',
+         title: 'Visible observation',
+         state: 'open',
+         generation: generationA,
+      });
+      assert(linkOne.kind === 'saved', 'a verified link must save');
+
+      const claimed = await githubStore.claimPullRequestRefresh(config, {
+         workspaceId: workspace,
+         issueId: issueOne,
+         generation: generationA,
+      });
+      assert(claimed, 'an in-flight refresh must claim the PR lease');
+
+      const installationB = await githubStore.selectInstallation(config, {
+         workspaceId: workspace,
+         installationId: 2002,
+         generation: generationA,
+      });
+      assert(installationB.kind === 'saved', 'switching installations must save');
+      assert(
+         installationB.row.connection_generation === generationA + 1,
+         'switching installations must bump the generation'
+      );
+      assert(installationB.hiddenCount === 1, 'switching must hide one visible PR');
+
+      const hidden = await githubStore.readPullRequest(config, workspace, issueOne);
+      assert(
+         hidden?.hidden === true &&
+            hidden.title === null &&
+            hidden.url === null &&
+            hidden.state === null &&
+            hidden.last_checked_at === null &&
+            hidden.last_check_error === null &&
+            hidden.refresh_lease_id === null,
+         'installation switch must hide and clear observation metadata and the PR lease'
+      );
+
+      const lateFinalize = await githubStore.finalizePullRequestRefresh(config, {
+         workspaceId: workspace,
+         issueId: issueOne,
+         pullRequestId: claimed.id,
+         attempt: claimed.attempt,
+         generation: generationA,
+         leaseId: claimed.refresh_lease_id,
+         outcome: {
+            kind: 'success',
+            title: 'Late observation',
+            state: 'merged',
+            url: 'https://github.com/ega-builds/ega-work/pull/1',
+         },
+      });
+      assert(lateFinalize === null, 'a late refresh must finalize zero rows after a switch');
+
+      const lateLink = await githubStore.insertPullRequest(config, {
+         workspaceId: workspace,
+         userId: USER_C,
+         issueId: issueOne,
+         owner: 'ega-builds',
+         repo: 'ega-work',
+         number: 1,
+         url: 'https://github.com/ega-builds/ega-work/pull/1',
+         title: 'Late link',
+         state: 'open',
+         generation: generationA,
+      });
+      assert(lateLink.kind === 'stale', 'a delayed link from the old generation must be stale');
+      assert(
+         (await githubStore.readPullRequest(config, workspace, issueOne))?.hidden === true,
+         'a delayed link must not restore the hidden row'
+      );
+
+      const reselect = await githubStore.selectInstallation(config, {
+         workspaceId: workspace,
+         installationId: 2002,
+         generation: installationB.row.connection_generation,
+      });
+      assert(reselect.kind === 'unchanged', 'reselecting the same installation must be unchanged');
+
+      const linkTwo = await githubStore.insertPullRequest(config, {
+         workspaceId: workspace,
+         userId: USER_C,
+         issueId: issueTwo,
+         owner: 'ega-builds',
+         repo: 'ega-work',
+         number: 2,
+         url: 'https://github.com/ega-builds/ega-work/pull/2',
+         title: 'Second observation',
+         state: 'closed',
+         generation: installationB.row.connection_generation,
+      });
+      assert(linkTwo.kind === 'saved', 'a link under the current generation must save');
+      const reselectWithPr = await githubStore.selectInstallation(config, {
+         workspaceId: workspace,
+         installationId: 2002,
+         generation: installationB.row.connection_generation,
+      });
+      assert(reselectWithPr.kind === 'unchanged', 'unchanged must not bump the generation');
+      assert(
+         (await githubStore.readPullRequest(config, workspace, issueTwo))?.hidden === false,
+         'unchanged must not hide a currently visible PR'
+      );
+
+      const expectedGeneration = installationB.row.connection_generation;
+      const concurrent = await Promise.all([
+         githubStore.selectInstallation(config, {
+            workspaceId: workspace,
+            installationId: 3003,
+            generation: expectedGeneration,
+         }),
+         githubStore.selectInstallation(config, {
+            workspaceId: workspace,
+            installationId: 4004,
+            generation: expectedGeneration,
+         }),
+      ]);
+      assert(
+         concurrent.filter((result) => result.kind === 'saved').length === 1,
+         'only one concurrent installation switch may save'
+      );
+      assert(
+         concurrent.some((result) => result.kind === 'stale' || result.kind === 'conflict'),
+         'the losing concurrent switch must be stale or conflict'
+      );
+      const afterConcurrent = await githubStore.readConnection(config, workspace);
+      assert(
+         afterConcurrent &&
+            afterConcurrent.connection_generation === expectedGeneration + 1 &&
+            [3003, 4004].includes(Number(afterConcurrent.installation_id)),
+         'concurrent switches must leave one complete selection'
+      );
+      assert(
+         (await githubStore.readPullRequest(config, workspace, issueTwo))?.hidden === true,
+         'a successful switch must hide the visible PR'
+      );
+
+      const staleSwitch = await githubStore.selectInstallation(config, {
+         workspaceId: workspace,
+         installationId: 5005,
+         generation: expectedGeneration,
+      });
+      assert(staleSwitch.kind === 'stale', 'an old generation must be stale');
+
+      const activeLeaseId = '00000000-0000-4000-8000-0000000000b1';
+      await asRuntime(pool, workspace, USER_C, (client) =>
+         client.query(
+            `update work_github_connections
+             set refresh_lease_id = $2, refresh_lease_expires_at = now() + interval '30 seconds'
+             where workspace_id = $1`,
+            [workspace, activeLeaseId]
+         )
+      );
+      const beforeLease = await githubStore.readConnection(config, workspace);
+      const activeLeaseSwitch = await githubStore.selectInstallation(config, {
+         workspaceId: workspace,
+         installationId: 5005,
+         generation: beforeLease.connection_generation,
+      });
+      assert(activeLeaseSwitch.kind === 'conflict', 'an active lease must block the switch');
+      const afterActiveLease = await githubStore.readConnection(config, workspace);
+      assert(
+         afterActiveLease.installation_id === beforeLease.installation_id &&
+            afterActiveLease.refresh_lease_id === activeLeaseId &&
+            afterActiveLease.connection_generation === beforeLease.connection_generation,
+         'an active lease conflict must not change the selection or lease'
+      );
+
+      await asRuntime(pool, workspace, USER_C, (client) =>
+         client.query(
+            `update work_github_connections
+             set refresh_lease_expires_at = now() - interval '1 second'
+             where workspace_id = $1`,
+            [workspace]
+         )
+      );
+      const expiredLeaseSwitch = await githubStore.selectInstallation(config, {
+         workspaceId: workspace,
+         installationId: 5005,
+         generation: beforeLease.connection_generation,
+      });
+      assert(expiredLeaseSwitch.kind === 'conflict', 'an expired lease must block the switch');
+      const afterExpiredLease = await githubStore.readConnection(config, workspace);
+      assert(
+         afterExpiredLease.installation_id === beforeLease.installation_id &&
+            afterExpiredLease.refresh_lease_id === activeLeaseId,
+         'an expired lease conflict must leave the lease and selection untouched'
+      );
+
+      await asRuntime(pool, workspace, USER_C, (client) =>
+         client.query(
+            `update work_github_connections
+             set refresh_lease_id = null, refresh_lease_expires_at = null
+             where workspace_id = $1`,
+            [workspace]
+         )
+      );
+
+      const otherWorkspace = await asUser(pool, USER_D, async (client) => {
+         const result = await client.query(
+            `insert into work_workspaces (owner_id, name) values ($1, 'Other workspace') returning id`,
+            [USER_D]
+         );
+         return result.rows[0].id;
+      });
+      const otherConnected = await githubStore.saveConnection(config, {
+         workspaceId: otherWorkspace,
+         stateGeneration: 0,
+         providerUserId: '200',
+         login: 'hubot',
+         ...token('other'),
+      });
+      assert(otherConnected.kind === 'saved', 'the other workspace connection must save');
+      const otherSelected = await githubStore.selectInstallation(config, {
+         workspaceId: otherWorkspace,
+         installationId: 7007,
+         generation: otherConnected.row.connection_generation,
+      });
+      assert(otherSelected.kind === 'saved', 'the other workspace must select its installation');
+      const current = await githubStore.readConnection(config, workspace);
+      const otherSwitch = await githubStore.selectInstallation(config, {
+         workspaceId: workspace,
+         installationId: 8008,
+         generation: current.connection_generation,
+      });
+      assert(otherSwitch.kind === 'saved', 'workspace A must still switch independently');
+      const otherAfter = await githubStore.readConnection(config, otherWorkspace);
+      assert(
+         otherAfter.installation_id === otherSelected.row.installation_id &&
+            otherAfter.connection_generation === otherSelected.row.connection_generation,
+         'a switch in one workspace must not affect another'
+      );
+
+      // Fix B: same-provider reconnect invalidates observations and keeps the
+      // connection usable with the installation retained.
+      const beforeReconnect = await githubStore.readConnection(config, workspace);
+      const reconnect = await githubStore.saveConnection(config, {
+         workspaceId: workspace,
+         stateGeneration: beforeReconnect.connection_generation,
+         providerUserId: beforeReconnect.provider_user_id,
+         login: beforeReconnect.login,
+         ...token('reconnect'),
+      });
+      assert(reconnect.kind === 'saved', 'same-account reconnect must save');
+      assert(
+         reconnect.row.connection_generation === beforeReconnect.connection_generation + 1,
+         'same-account reconnect must bump the generation'
+      );
+      assert(
+         reconnect.row.installation_id === beforeReconnect.installation_id,
+         'same-account reconnect must retain the installation'
+      );
+      assert(
+         reconnect.row.revoked_at === null &&
+            reconnect.row.token_ciphertext === 'cipher-reconnect' &&
+            reconnect.row.token_version === beforeReconnect.token_version + 1,
+         'same-account reconnect must leave a usable token'
+      );
+      for (const issueId of [issueOne, issueTwo]) {
+         const row = await githubStore.readPullRequest(config, workspace, issueId);
+         assert(
+            row?.hidden === true &&
+               row.title === null &&
+               row.url === null &&
+               row.state === null &&
+               row.last_checked_at === null,
+            'same-account reconnect must hide and clear every PR'
+         );
+      }
+
+      const afterReconnect = await githubStore.readConnection(config, workspace);
+      const selectAfterReconnect = await githubStore.selectInstallation(config, {
+         workspaceId: workspace,
+         installationId: Number(afterReconnect.installation_id),
+         generation: afterReconnect.connection_generation,
+      });
+      assert(
+         selectAfterReconnect.kind === 'unchanged',
+         'reselecting the retained installation must not reveal hidden PRs'
+      );
+      assert(
+         (await githubStore.readPullRequest(config, workspace, issueTwo))?.hidden === true,
+         'installation selection alone must not reveal hidden PRs'
+      );
+
+      const relink = await githubStore.insertPullRequest(config, {
+         workspaceId: workspace,
+         userId: USER_C,
+         issueId: issueTwo,
+         owner: 'ega-builds',
+         repo: 'ega-work',
+         number: 2,
+         url: 'https://github.com/ega-builds/ega-work/pull/2',
+         title: 'Relinked observation',
+         state: 'open',
+         generation: afterReconnect.connection_generation,
+      });
+      assert(relink.kind === 'saved', 'a fresh link under the new generation must save');
+      assert(
+         (await githubStore.readPullRequest(config, workspace, issueTwo))?.hidden === false,
+         'the relinked PR must be visible'
+      );
+      assert(
+         (await githubStore.readPullRequest(config, workspace, issueOne))?.hidden === true,
+         'the old PR must stay hidden until explicitly relinked'
+      );
+
+      const visibleView = await getGithubIssueView(workspace, issueTwo);
+      assert(
+         visibleView.status === 'connected' && visibleView.pullRequest !== null,
+         'the read path must project a matching visible PR'
+      );
+      assert(visibleView.needsRelink === false, 'a visible PR must not request relinking');
+
+      const hiddenView = await getGithubIssueView(workspace, issueOne);
+      assert(hiddenView.pullRequest === null, 'a hidden PR must not be projected');
+      assert(hiddenView.needsRelink === true, 'a hidden row must request relinking');
+
+      const currentAfterReconnect = await githubStore.readConnection(config, workspace);
+      await asRuntime(pool, workspace, USER_C, (client) =>
+         client.query(
+            `update work_pull_requests set connection_generation = $2, hidden = false where id = $1`,
+            [relink.row.id, currentAfterReconnect.connection_generation - 1]
+         )
+      );
+      const oldGenerationView = await getGithubIssueView(workspace, issueTwo);
+      assert(
+         oldGenerationView.pullRequest === null && oldGenerationView.needsRelink === true,
+         'an old-generation PR must not be projected and must request relinking'
+      );
+      await asRuntime(pool, workspace, USER_C, (client) =>
+         client.query(`update work_pull_requests set connection_generation = $2 where id = $1`, [
+            relink.row.id,
+            currentAfterReconnect.connection_generation,
+         ])
+      );
+
+      await asRuntime(pool, workspace, USER_C, (client) =>
+         client.query(
+            `update work_github_connections set installation_id = null where workspace_id = $1`,
+            [workspace]
+         )
+      );
+      const noInstallationView = await getGithubIssueView(workspace, issueTwo);
+      assert(
+         noInstallationView.pullRequest === null,
+         'a connection without a selected installation must not project PR data'
+      );
+      await asRuntime(pool, workspace, USER_C, (client) =>
+         client.query(
+            `update work_github_connections set installation_id = $2 where workspace_id = $1`,
+            [workspace, currentAfterReconnect.installation_id]
+         )
+      );
+
+      await asRuntime(pool, workspace, USER_C, (client) =>
+         client.query(
+            `update work_github_connections set revoked_at = now() where workspace_id = $1`,
+            [workspace]
+         )
+      );
+      const revokedView = await getGithubIssueView(workspace, issueTwo);
+      assert(
+         revokedView.status === 'reauthorization_required' &&
+            revokedView.pullRequest === null &&
+            revokedView.needsRelink === false,
+         'a revoked connection must not project PR data'
+      );
+      await asRuntime(pool, workspace, USER_C, (client) =>
+         client.query(
+            `update work_github_connections set revoked_at = null where workspace_id = $1`,
+            [workspace]
+         )
+      );
+
+      console.log('PASS real store/service installation, reconnect, and read-path behavior');
+   } finally {
+      await githubStore.closeGithubPool();
+      for (const name of envKeys) {
+         if (previousEnv[name] === undefined) {
+            delete process.env[name];
+         } else {
+            process.env[name] = previousEnv[name];
+         }
+      }
+      await pool.query(`drop role if exists "${role}"`).catch((error) => {
+         console.error(
+            `WARN disposable login role cleanup did not complete: ${error.code ?? 'error'}`
+         );
+      });
+   }
 }
 
 function asRole(pool, role, workspaceId, userId, callback) {

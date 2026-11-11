@@ -6,9 +6,14 @@ import {
    githubAppInstallUrl,
    readGithubConfig,
    type GithubConfig,
-} from './config';
-import { decryptSecret, encryptSecret, pkceChallenge, randomToken, sha256Hex } from './crypto';
-import { presentInstallation, presentPullRequest, presentStatus } from './present';
+} from './config.ts';
+import { decryptSecret, encryptSecret, pkceChallenge, randomToken, sha256Hex } from './crypto.ts';
+import {
+   isPullRequestVisible,
+   presentInstallation,
+   presentPullRequest,
+   presentStatus,
+} from './present.ts';
 import {
    GithubRequestError,
    exchangeAuthorizationCode,
@@ -24,9 +29,9 @@ import {
    type GithubTokens,
    type GithubViewer,
    type ProviderOptions,
-} from './provider';
-import * as store from './store';
-import { classifyConnectionToken } from './token';
+} from './provider.ts';
+import * as store from './store.ts';
+import { classifyConnectionToken } from './token.ts';
 import type {
    GithubConnectionRecord,
    GithubConnectionStatus,
@@ -35,7 +40,7 @@ import type {
    GithubPullRequestView,
    GithubStatusView,
 } from './types';
-import { parsePullRequestUrl } from './url';
+import { parsePullRequestUrl } from './url.ts';
 
 export type GithubServiceErrorCode =
    | 'unconfigured'
@@ -50,9 +55,12 @@ export type GithubServiceErrorCode =
    | 'invalid_input';
 
 export class GithubServiceError extends Error {
-   constructor(readonly code: GithubServiceErrorCode) {
+   readonly code: GithubServiceErrorCode;
+
+   constructor(code: GithubServiceErrorCode) {
       super(code);
       this.name = 'GithubServiceError';
+      this.code = code;
    }
 }
 
@@ -366,25 +374,42 @@ export async function getGithubIssueView(
 ): Promise<GithubIssueView> {
    const result = readGithubConfig();
    if (!result.configured) {
-      return { configured: false, status: 'unconfigured', pullRequest: null, installUrl: null };
+      return {
+         configured: false,
+         status: 'unconfigured',
+         pullRequest: null,
+         needsRelink: false,
+         installUrl: null,
+      };
    }
 
    const installUrl = githubAppInstallUrl(result.config);
    try {
       const connection = await store.readConnection(result.config, workspaceId);
       const status = presentStatus(true, connection).status;
-      if (status !== 'connected') {
-         return { configured: true, status, pullRequest: null, installUrl };
+      if (!connection || status !== 'connected') {
+         return { configured: true, status, pullRequest: null, needsRelink: false, installUrl };
       }
       const row = await store.readPullRequest(result.config, workspaceId, issueId);
+      const visible = isPullRequestVisible(connection, row);
+      const needsRelink = Boolean(
+         row && (row.hidden || row.connection_generation !== connection.connection_generation)
+      );
       return {
          configured: true,
          status,
-         pullRequest: presentPullRequest(row),
+         pullRequest: visible ? presentPullRequest(row) : null,
+         needsRelink,
          installUrl,
       };
    } catch {
-      return { configured: true, status: 'unavailable', pullRequest: null, installUrl };
+      return {
+         configured: true,
+         status: 'unavailable',
+         pullRequest: null,
+         needsRelink: false,
+         installUrl,
+      };
    }
 }
 
@@ -563,10 +588,15 @@ export async function listGithubInstallations(
    }
 }
 
+export type ChooseInstallationResult = Readonly<{
+   status: GithubStatusView;
+   previousLinksHidden: boolean;
+}>;
+
 export async function chooseGithubInstallation(
    actor: GithubActor,
    rawInstallationId: unknown
-): Promise<GithubStatusView> {
+): Promise<ChooseInstallationResult> {
    const config = requireConfig();
    const installationId =
       typeof rawInstallationId === 'number' && Number.isSafeInteger(rawInstallationId)
@@ -601,11 +631,20 @@ export async function chooseGithubInstallation(
       installationId,
       generation: authorized.generation,
    });
-   if (!updated) {
+
+   if (updated.kind === 'saved') {
+      return {
+         status: presentStatus(true, updated.row),
+         previousLinksHidden: updated.hiddenCount > 0,
+      };
+   }
+   if (updated.kind === 'unchanged') {
+      return { status: presentStatus(true, updated.row), previousLinksHidden: false };
+   }
+   if (updated.kind === 'missing') {
       return fail('reauthorization_required');
    }
-
-   return presentStatus(true, updated);
+   return fail('conflict');
 }
 
 export async function disconnectGithub(actor: GithubActor): Promise<GithubStatusView> {

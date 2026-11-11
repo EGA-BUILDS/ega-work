@@ -60,11 +60,13 @@ number can exist in another workspace. Pull requests reference
 `(issue_id, workspace_id)` so a link can never cross workspaces.
 
 Every successful GitHub connect bumps `work_github_connections.
-connection_generation`. A same-provider re-authorization moves existing connected
-pull-request rows to the new generation in the same transaction; a different
-GitHub provider user hides and clears them instead. A callback holding an older
-generation finalizes nothing. The generation is also part of every refresh and
-disconnect compare-and-set.
+connection_generation` and hides every cached pull-request observation, even for
+the same GitHub provider user. Switching the selected installation also bumps
+the generation and hides all links in the same transaction. An explicit relink
+under the new generation is required before a link is projected again. A
+callback holding an older generation finalizes nothing. The generation is also
+part of every refresh, link, installation switch, and disconnect
+compare-and-set.
 
 ## GitHub runtime role
 
@@ -132,8 +134,18 @@ The second database applies the full history from empty, then checks:
   an expired lease with an owner is not reclaimable and finalize is the only
   path that clears it, unlink or disconnect during a refresh commits zero rows,
   a transient token-refresh failure preserves the last observation and marks it
-  stale, a successful re-authorization bumps the generation and carries linked
-  PRs, and a stale callback generation cannot reconnect.
+  stale, a successful re-authorization or installation switch bumps the
+  generation and hides linked PRs, and a stale callback generation cannot
+  reconnect.
+
+When `TEST_DATABASE_URL` points at a local server, the harness also creates a
+disposable login role that is a member of `work_github_runtime`, points a
+`GithubConfig` at the temporary database, and calls the actual store/service
+exports. It runs Node with `--conditions=react-server` so the `server-only`
+package resolves to its empty react-server entry. These tests cover atomic
+installation switches, delayed refresh/link races, same-account reconnect,
+generation-guarded reads, hidden-link relinking, and the read-path projection
+gate.
 
 It drops both databases before exit and prints no credentials. The migration SQL
 is not idempotent; the journal is what prevents re-application.

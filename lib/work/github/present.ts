@@ -108,6 +108,28 @@ export function presentPullRequestError(code: string | null): string | null {
 }
 
 /**
+ * Defense-in-depth read gate. A stored observation is only projected when the
+ * connection is usable, has a selected installation, and the row is visible
+ * and belongs to the current connection generation. Every mutation already
+ * enforces this; the server render path checks it again before exposing data.
+ */
+export function isPullRequestVisible(
+   connection: GithubConnectionRecord | null,
+   row: PullRequestRecord | null
+): boolean {
+   if (!connection || connection.revoked_at || !connection.token_ciphertext) {
+      return false;
+   }
+   if (connection.installation_id === null) {
+      return false;
+   }
+   if (!row || row.hidden) {
+      return false;
+   }
+   return row.connection_generation === connection.connection_generation;
+}
+
+/**
  * Projects a stored pull request into the fields the browser may see. Token,
  * ciphertext, lease, and raw provider text never appear in the result. Hidden
  * rows are not public at all.

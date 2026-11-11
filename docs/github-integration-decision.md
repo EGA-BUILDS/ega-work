@@ -77,9 +77,12 @@ deployed origin:
   the lease in place; because a later attempt then sees a stalled lease, it
   requires reconnect before refreshing again. A definitive authorization failure
   clears tokens and hides data instead of replaying the refresh token.
-  A successful connect bumps the connection generation; a same-provider
-  re-authorization carries linked PR rows forward, a different provider user
-  hides them, and an old callback generation finalizes nothing.
+  A successful connect always bumps the connection generation and hides every
+  cached pull-request observation, including for the same GitHub account.
+  Switching the selected installation also bumps the generation and hides all
+  links in the same transaction. Only an explicit relink under the new
+  generation makes a link visible again; an old callback generation finalizes
+  nothing.
 - Requests pin `X-GitHub-Api-Version: 2026-03-10`, the REST API version
   documented when this integration was written, so a future GitHub default
   cannot change the pull-request payload.

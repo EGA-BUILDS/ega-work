@@ -14,7 +14,8 @@ import type { GithubInstallationView, GithubStatusView } from '@/lib/work/github
 type Notice = 'connected' | 'denied' | 'error' | 'setup' | null;
 
 const NOTICES: Readonly<Record<Exclude<Notice, null>, string>> = {
-   connected: 'GitHub connected. Choose an installation to read pull requests.',
+   connected:
+      'GitHub connected. Previously linked pull requests, if any, were hidden and must be relinked. Choose an installation to read pull requests.',
    denied: 'GitHub authorization was cancelled or expired. Try again.',
    error: 'GitHub authorization did not complete. Try again.',
    setup: 'GitHub App setup returned. Choose an installation below.',
@@ -186,6 +187,7 @@ export function GithubSettings({
          });
          const payload = (await response.json().catch(() => null)) as {
             status?: GithubStatusView;
+            previousLinksHidden?: boolean;
             error?: string;
          } | null;
          if (!response.ok || !payload?.status) {
@@ -194,7 +196,11 @@ export function GithubSettings({
             return;
          }
          setStatus(payload.status);
-         setMessage('Installation selected.');
+         setMessage(
+            payload.previousLinksHidden
+               ? 'Installation selected. Previous pull-request links were hidden and must be relinked.'
+               : 'Installation selected.'
+         );
          router.refresh();
       } catch {
          setError('That installation was not selected. Check your connection and try again.');

@@ -38,8 +38,8 @@ This is not a claim that v1.1 is accepted, deployed, or proven against GitHub.
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm exec eslint` | Passed on every changed TypeScript file                                                                                                      |
 | `pnpm typecheck`   | Passed on the candidate                                                                                                                      |
-| `pnpm test:unit`   | 72 tests passed, including GitHub URL, crypto, token lease, provider, config, sanitizer                                                      |
-| `pnpm test:db`     | Passed on local disposable PostgreSQL: v1.0 upgrade, fresh apply, RLS/runtime role, CAS                                                      |
+| `pnpm test:unit`   | 73 tests passed, including GitHub URL, crypto, token lease, provider, config, sanitizer                                                      |
+| `pnpm test:db`     | Passed on local disposable PostgreSQL: upgrade, RLS/runtime role, CAS, real store/service                                                    |
 | `pnpm build`       | Passed on the candidate                                                                                                                      |
 | `pnpm test:smoke`  | Passed against the production build; rendered routes only, not provider acceptance                                                           |
 | Independent review | Review requested; CHANGES_REQUESTED on `e3a3843`; `55ee268` approved in the review handoff. The final head must be re-reviewed before merge. |
