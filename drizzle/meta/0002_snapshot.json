@@ -1,0 +1,952 @@
+{
+   "id": "cc1bcccf-efec-43d4-9691-a32c57362171",
+   "prevId": "439b7cbe-73c2-4739-bcd7-edea57df2f07",
+   "version": "7",
+   "dialect": "postgresql",
+   "tables": {
+      "public.work_github_connections": {
+         "name": "work_github_connections",
+         "schema": "",
+         "columns": {
+            "workspace_id": {
+               "name": "workspace_id",
+               "type": "uuid",
+               "primaryKey": true,
+               "notNull": true
+            },
+            "provider_user_id": {
+               "name": "provider_user_id",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "login": {
+               "name": "login",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "scopes": {
+               "name": "scopes",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "token_ciphertext": {
+               "name": "token_ciphertext",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "token_iv": {
+               "name": "token_iv",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "token_tag": {
+               "name": "token_tag",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "token_expires_at": {
+               "name": "token_expires_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "refresh_token_ciphertext": {
+               "name": "refresh_token_ciphertext",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "refresh_token_iv": {
+               "name": "refresh_token_iv",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "refresh_token_tag": {
+               "name": "refresh_token_tag",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "refresh_token_expires_at": {
+               "name": "refresh_token_expires_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "installation_id": {
+               "name": "installation_id",
+               "type": "bigint",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "connection_generation": {
+               "name": "connection_generation",
+               "type": "integer",
+               "primaryKey": false,
+               "notNull": true,
+               "default": 0
+            },
+            "token_version": {
+               "name": "token_version",
+               "type": "integer",
+               "primaryKey": false,
+               "notNull": true,
+               "default": 0
+            },
+            "refresh_lease_id": {
+               "name": "refresh_lease_id",
+               "type": "uuid",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "refresh_lease_expires_at": {
+               "name": "refresh_lease_expires_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "connected_at": {
+               "name": "connected_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": true,
+               "default": "now()"
+            },
+            "revoked_at": {
+               "name": "revoked_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "updated_at": {
+               "name": "updated_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": true,
+               "default": "now()"
+            }
+         },
+         "indexes": {
+            "work_github_connections_workspace_id_idx": {
+               "name": "work_github_connections_workspace_id_idx",
+               "columns": [
+                  {
+                     "expression": "workspace_id",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  }
+               ],
+               "isUnique": false,
+               "concurrently": false,
+               "method": "btree",
+               "with": {}
+            }
+         },
+         "foreignKeys": {
+            "work_github_connections_workspace_id_work_workspaces_id_fk": {
+               "name": "work_github_connections_workspace_id_work_workspaces_id_fk",
+               "tableFrom": "work_github_connections",
+               "tableTo": "work_workspaces",
+               "columnsFrom": ["workspace_id"],
+               "columnsTo": ["id"],
+               "onDelete": "cascade",
+               "onUpdate": "no action"
+            }
+         },
+         "compositePrimaryKeys": {},
+         "uniqueConstraints": {},
+         "policies": {},
+         "checkConstraints": {},
+         "isRLSEnabled": false
+      },
+      "public.work_github_oauth_states": {
+         "name": "work_github_oauth_states",
+         "schema": "",
+         "columns": {
+            "id": {
+               "name": "id",
+               "type": "uuid",
+               "primaryKey": true,
+               "notNull": true,
+               "default": "gen_random_uuid()"
+            },
+            "state_hash": {
+               "name": "state_hash",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "workspace_id": {
+               "name": "workspace_id",
+               "type": "uuid",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "user_id": {
+               "name": "user_id",
+               "type": "uuid",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "code_verifier_ciphertext": {
+               "name": "code_verifier_ciphertext",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "code_verifier_iv": {
+               "name": "code_verifier_iv",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "code_verifier_tag": {
+               "name": "code_verifier_tag",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "connection_generation": {
+               "name": "connection_generation",
+               "type": "integer",
+               "primaryKey": false,
+               "notNull": true,
+               "default": 0
+            },
+            "expires_at": {
+               "name": "expires_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "consumed_at": {
+               "name": "consumed_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "created_at": {
+               "name": "created_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": true,
+               "default": "now()"
+            }
+         },
+         "indexes": {
+            "work_github_oauth_states_state_hash_key": {
+               "name": "work_github_oauth_states_state_hash_key",
+               "columns": [
+                  {
+                     "expression": "state_hash",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  }
+               ],
+               "isUnique": true,
+               "concurrently": false,
+               "method": "btree",
+               "with": {}
+            },
+            "work_github_oauth_states_expires_at_idx": {
+               "name": "work_github_oauth_states_expires_at_idx",
+               "columns": [
+                  {
+                     "expression": "expires_at",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  }
+               ],
+               "isUnique": false,
+               "concurrently": false,
+               "method": "btree",
+               "with": {}
+            }
+         },
+         "foreignKeys": {
+            "work_github_oauth_states_workspace_id_work_workspaces_id_fk": {
+               "name": "work_github_oauth_states_workspace_id_work_workspaces_id_fk",
+               "tableFrom": "work_github_oauth_states",
+               "tableTo": "work_workspaces",
+               "columnsFrom": ["workspace_id"],
+               "columnsTo": ["id"],
+               "onDelete": "cascade",
+               "onUpdate": "no action"
+            }
+         },
+         "compositePrimaryKeys": {},
+         "uniqueConstraints": {},
+         "policies": {},
+         "checkConstraints": {},
+         "isRLSEnabled": false
+      },
+      "public.work_issue_number_counters": {
+         "name": "work_issue_number_counters",
+         "schema": "",
+         "columns": {
+            "workspace_id": {
+               "name": "workspace_id",
+               "type": "uuid",
+               "primaryKey": true,
+               "notNull": true
+            },
+            "last_number": {
+               "name": "last_number",
+               "type": "bigint",
+               "primaryKey": false,
+               "notNull": true,
+               "default": 0
+            },
+            "updated_at": {
+               "name": "updated_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": true,
+               "default": "now()"
+            }
+         },
+         "indexes": {
+            "work_issue_number_counters_workspace_id_idx": {
+               "name": "work_issue_number_counters_workspace_id_idx",
+               "columns": [
+                  {
+                     "expression": "workspace_id",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  }
+               ],
+               "isUnique": false,
+               "concurrently": false,
+               "method": "btree",
+               "with": {}
+            }
+         },
+         "foreignKeys": {
+            "work_issue_number_counters_workspace_id_work_workspaces_id_fk": {
+               "name": "work_issue_number_counters_workspace_id_work_workspaces_id_fk",
+               "tableFrom": "work_issue_number_counters",
+               "tableTo": "work_workspaces",
+               "columnsFrom": ["workspace_id"],
+               "columnsTo": ["id"],
+               "onDelete": "cascade",
+               "onUpdate": "no action"
+            }
+         },
+         "compositePrimaryKeys": {},
+         "uniqueConstraints": {},
+         "policies": {},
+         "checkConstraints": {},
+         "isRLSEnabled": false
+      },
+      "public.work_issues": {
+         "name": "work_issues",
+         "schema": "",
+         "columns": {
+            "id": {
+               "name": "id",
+               "type": "uuid",
+               "primaryKey": true,
+               "notNull": true,
+               "default": "gen_random_uuid()"
+            },
+            "workspace_id": {
+               "name": "workspace_id",
+               "type": "uuid",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "project_id": {
+               "name": "project_id",
+               "type": "uuid",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "number": {
+               "name": "number",
+               "type": "bigint",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "title": {
+               "name": "title",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "description": {
+               "name": "description",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "status": {
+               "name": "status",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": true,
+               "default": "'open'"
+            },
+            "assignee_id": {
+               "name": "assignee_id",
+               "type": "uuid",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "version": {
+               "name": "version",
+               "type": "integer",
+               "primaryKey": false,
+               "notNull": true,
+               "default": 1
+            },
+            "created_at": {
+               "name": "created_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": true,
+               "default": "now()"
+            },
+            "updated_at": {
+               "name": "updated_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": true,
+               "default": "now()"
+            }
+         },
+         "indexes": {
+            "work_issues_workspace_id_idx": {
+               "name": "work_issues_workspace_id_idx",
+               "columns": [
+                  {
+                     "expression": "workspace_id",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  }
+               ],
+               "isUnique": false,
+               "concurrently": false,
+               "method": "btree",
+               "with": {}
+            },
+            "work_issues_project_id_idx": {
+               "name": "work_issues_project_id_idx",
+               "columns": [
+                  {
+                     "expression": "project_id",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  }
+               ],
+               "isUnique": false,
+               "concurrently": false,
+               "method": "btree",
+               "with": {}
+            },
+            "work_issues_assignee_id_idx": {
+               "name": "work_issues_assignee_id_idx",
+               "columns": [
+                  {
+                     "expression": "assignee_id",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  }
+               ],
+               "isUnique": false,
+               "concurrently": false,
+               "method": "btree",
+               "with": {}
+            },
+            "work_issues_workspace_number_key": {
+               "name": "work_issues_workspace_number_key",
+               "columns": [
+                  {
+                     "expression": "workspace_id",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  },
+                  {
+                     "expression": "number",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  }
+               ],
+               "isUnique": true,
+               "concurrently": false,
+               "method": "btree",
+               "with": {}
+            }
+         },
+         "foreignKeys": {
+            "work_issues_workspace_id_work_workspaces_id_fk": {
+               "name": "work_issues_workspace_id_work_workspaces_id_fk",
+               "tableFrom": "work_issues",
+               "tableTo": "work_workspaces",
+               "columnsFrom": ["workspace_id"],
+               "columnsTo": ["id"],
+               "onDelete": "cascade",
+               "onUpdate": "no action"
+            },
+            "work_issues_project_workspace_fk": {
+               "name": "work_issues_project_workspace_fk",
+               "tableFrom": "work_issues",
+               "tableTo": "work_projects",
+               "columnsFrom": ["project_id", "workspace_id"],
+               "columnsTo": ["id", "workspace_id"],
+               "onDelete": "cascade",
+               "onUpdate": "no action"
+            }
+         },
+         "compositePrimaryKeys": {},
+         "uniqueConstraints": {
+            "work_issues_id_workspace_key": {
+               "name": "work_issues_id_workspace_key",
+               "nullsNotDistinct": false,
+               "columns": ["id", "workspace_id"]
+            }
+         },
+         "policies": {},
+         "checkConstraints": {
+            "work_issues_title_check": {
+               "name": "work_issues_title_check",
+               "value": "length(btrim(\"work_issues\".\"title\")) between 1 and 500"
+            },
+            "work_issues_description_check": {
+               "name": "work_issues_description_check",
+               "value": "\"work_issues\".\"description\" is null or length(\"work_issues\".\"description\") <= 20000"
+            },
+            "work_issues_status_check": {
+               "name": "work_issues_status_check",
+               "value": "\"work_issues\".\"status\" in ('open', 'completed')"
+            }
+         },
+         "isRLSEnabled": false
+      },
+      "public.work_projects": {
+         "name": "work_projects",
+         "schema": "",
+         "columns": {
+            "id": {
+               "name": "id",
+               "type": "uuid",
+               "primaryKey": true,
+               "notNull": true,
+               "default": "gen_random_uuid()"
+            },
+            "workspace_id": {
+               "name": "workspace_id",
+               "type": "uuid",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "name": {
+               "name": "name",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "description": {
+               "name": "description",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "version": {
+               "name": "version",
+               "type": "integer",
+               "primaryKey": false,
+               "notNull": true,
+               "default": 1
+            },
+            "created_at": {
+               "name": "created_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": true,
+               "default": "now()"
+            },
+            "updated_at": {
+               "name": "updated_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": true,
+               "default": "now()"
+            }
+         },
+         "indexes": {
+            "work_projects_workspace_id_idx": {
+               "name": "work_projects_workspace_id_idx",
+               "columns": [
+                  {
+                     "expression": "workspace_id",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  }
+               ],
+               "isUnique": false,
+               "concurrently": false,
+               "method": "btree",
+               "with": {}
+            }
+         },
+         "foreignKeys": {
+            "work_projects_workspace_id_work_workspaces_id_fk": {
+               "name": "work_projects_workspace_id_work_workspaces_id_fk",
+               "tableFrom": "work_projects",
+               "tableTo": "work_workspaces",
+               "columnsFrom": ["workspace_id"],
+               "columnsTo": ["id"],
+               "onDelete": "cascade",
+               "onUpdate": "no action"
+            }
+         },
+         "compositePrimaryKeys": {},
+         "uniqueConstraints": {
+            "work_projects_id_workspace_key": {
+               "name": "work_projects_id_workspace_key",
+               "nullsNotDistinct": false,
+               "columns": ["id", "workspace_id"]
+            }
+         },
+         "policies": {},
+         "checkConstraints": {
+            "work_projects_name_check": {
+               "name": "work_projects_name_check",
+               "value": "length(btrim(\"work_projects\".\"name\")) between 1 and 200"
+            },
+            "work_projects_description_check": {
+               "name": "work_projects_description_check",
+               "value": "\"work_projects\".\"description\" is null or length(\"work_projects\".\"description\") <= 10000"
+            }
+         },
+         "isRLSEnabled": false
+      },
+      "public.work_pull_requests": {
+         "name": "work_pull_requests",
+         "schema": "",
+         "columns": {
+            "id": {
+               "name": "id",
+               "type": "uuid",
+               "primaryKey": true,
+               "notNull": true,
+               "default": "gen_random_uuid()"
+            },
+            "workspace_id": {
+               "name": "workspace_id",
+               "type": "uuid",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "issue_id": {
+               "name": "issue_id",
+               "type": "uuid",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "repo_owner": {
+               "name": "repo_owner",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "repo_name": {
+               "name": "repo_name",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "pr_number": {
+               "name": "pr_number",
+               "type": "integer",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "url": {
+               "name": "url",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "title": {
+               "name": "title",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "state": {
+               "name": "state",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "last_checked_at": {
+               "name": "last_checked_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "last_check_error": {
+               "name": "last_check_error",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "is_stale": {
+               "name": "is_stale",
+               "type": "boolean",
+               "primaryKey": false,
+               "notNull": true,
+               "default": false
+            },
+            "hidden": {
+               "name": "hidden",
+               "type": "boolean",
+               "primaryKey": false,
+               "notNull": true,
+               "default": false
+            },
+            "attempt": {
+               "name": "attempt",
+               "type": "integer",
+               "primaryKey": false,
+               "notNull": true,
+               "default": 0
+            },
+            "connection_generation": {
+               "name": "connection_generation",
+               "type": "integer",
+               "primaryKey": false,
+               "notNull": true,
+               "default": 0
+            },
+            "refresh_lease_id": {
+               "name": "refresh_lease_id",
+               "type": "uuid",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "refresh_lease_expires_at": {
+               "name": "refresh_lease_expires_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "linked_by": {
+               "name": "linked_by",
+               "type": "uuid",
+               "primaryKey": false,
+               "notNull": false
+            },
+            "created_at": {
+               "name": "created_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": true,
+               "default": "now()"
+            },
+            "updated_at": {
+               "name": "updated_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": true,
+               "default": "now()"
+            }
+         },
+         "indexes": {
+            "work_pull_requests_issue_id_key": {
+               "name": "work_pull_requests_issue_id_key",
+               "columns": [
+                  {
+                     "expression": "issue_id",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  }
+               ],
+               "isUnique": true,
+               "concurrently": false,
+               "method": "btree",
+               "with": {}
+            },
+            "work_pull_requests_identity_key": {
+               "name": "work_pull_requests_identity_key",
+               "columns": [
+                  {
+                     "expression": "workspace_id",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  },
+                  {
+                     "expression": "repo_owner",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  },
+                  {
+                     "expression": "repo_name",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  },
+                  {
+                     "expression": "pr_number",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  }
+               ],
+               "isUnique": true,
+               "concurrently": false,
+               "method": "btree",
+               "with": {}
+            },
+            "work_pull_requests_workspace_id_idx": {
+               "name": "work_pull_requests_workspace_id_idx",
+               "columns": [
+                  {
+                     "expression": "workspace_id",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  }
+               ],
+               "isUnique": false,
+               "concurrently": false,
+               "method": "btree",
+               "with": {}
+            }
+         },
+         "foreignKeys": {
+            "work_pull_requests_workspace_id_work_workspaces_id_fk": {
+               "name": "work_pull_requests_workspace_id_work_workspaces_id_fk",
+               "tableFrom": "work_pull_requests",
+               "tableTo": "work_workspaces",
+               "columnsFrom": ["workspace_id"],
+               "columnsTo": ["id"],
+               "onDelete": "cascade",
+               "onUpdate": "no action"
+            },
+            "work_pull_requests_issue_workspace_fk": {
+               "name": "work_pull_requests_issue_workspace_fk",
+               "tableFrom": "work_pull_requests",
+               "tableTo": "work_issues",
+               "columnsFrom": ["issue_id", "workspace_id"],
+               "columnsTo": ["id", "workspace_id"],
+               "onDelete": "cascade",
+               "onUpdate": "no action"
+            }
+         },
+         "compositePrimaryKeys": {},
+         "uniqueConstraints": {},
+         "policies": {},
+         "checkConstraints": {
+            "work_pull_requests_pr_number_check": {
+               "name": "work_pull_requests_pr_number_check",
+               "value": "\"work_pull_requests\".\"pr_number\" > 0"
+            },
+            "work_pull_requests_state_check": {
+               "name": "work_pull_requests_state_check",
+               "value": "\"work_pull_requests\".\"state\" is null or \"work_pull_requests\".\"state\" in ('open', 'closed', 'merged')"
+            }
+         },
+         "isRLSEnabled": false
+      },
+      "public.work_workspaces": {
+         "name": "work_workspaces",
+         "schema": "",
+         "columns": {
+            "id": {
+               "name": "id",
+               "type": "uuid",
+               "primaryKey": true,
+               "notNull": true,
+               "default": "gen_random_uuid()"
+            },
+            "owner_id": {
+               "name": "owner_id",
+               "type": "uuid",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "name": {
+               "name": "name",
+               "type": "text",
+               "primaryKey": false,
+               "notNull": true
+            },
+            "created_at": {
+               "name": "created_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": true,
+               "default": "now()"
+            },
+            "updated_at": {
+               "name": "updated_at",
+               "type": "timestamp with time zone",
+               "primaryKey": false,
+               "notNull": true,
+               "default": "now()"
+            }
+         },
+         "indexes": {
+            "work_workspaces_owner_id_key": {
+               "name": "work_workspaces_owner_id_key",
+               "columns": [
+                  {
+                     "expression": "owner_id",
+                     "isExpression": false,
+                     "asc": true,
+                     "nulls": "last"
+                  }
+               ],
+               "isUnique": true,
+               "concurrently": false,
+               "method": "btree",
+               "with": {}
+            }
+         },
+         "foreignKeys": {},
+         "compositePrimaryKeys": {},
+         "uniqueConstraints": {},
+         "policies": {},
+         "checkConstraints": {
+            "work_workspaces_name_check": {
+               "name": "work_workspaces_name_check",
+               "value": "length(btrim(\"work_workspaces\".\"name\")) between 1 and 120"
+            }
+         },
+         "isRLSEnabled": false
+      }
+   },
+   "enums": {},
+   "schemas": {},
+   "sequences": {},
+   "roles": {},
+   "policies": {},
+   "views": {},
+   "_meta": {
+      "columns": {},
+      "schemas": {},
+      "tables": {}
+   }
+}

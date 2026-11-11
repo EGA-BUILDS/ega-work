@@ -1,91 +1,151 @@
 # GitHub integration decision
 
-Status: **recommendation, not confirmed**. Issue #13 is an owner decision. No
-GitHub credential or test repository is configured in this checkout, so issues
-#14–#16 are blocked until the owner confirms the provider setup.
+Status: **implemented in code; live provider acceptance not performed.** No
+GitHub App credentials or test installation exist in this environment. The
+feature is disabled and hidden when its configuration is absent, and v1.0
+workspace behavior is unchanged.
 
-## Recommendation: GitHub App
+## Decision: GitHub App with user-to-server tokens
 
-Use a GitHub App installed on selected repositories, not a classic OAuth App.
+EGA Work uses a GitHub App and the user authorization web flow. It does not use
+a classic OAuth App, an App private key, installation access tokens, webhooks,
+polling, or a background worker.
 
-| Concern              | GitHub App (recommended)                          | OAuth App                     |
-| -------------------- | ------------------------------------------------- | ----------------------------- |
-| Repository selection | Installation chooses repositories                 | User-wide repository scope    |
-| Permissions          | Pull requests: read, Metadata: read               | Broad repo scope              |
-| Credential           | Short-lived installation token minted server-side | Long-lived user token         |
-| Revocation           | Uninstall/revoke the installation                 | Revoke the user authorization |
-| Workspace scope      | One installation can be bound to one workspace    | Token is user-wide            |
+| Concern            | This integration                                                   |
+| ------------------ | ------------------------------------------------------------------ |
+| Credential         | Short-lived user-to-server token, refreshed with a rotating token  |
+| Repository access  | The intersection of the user's access and the App installation     |
+| Permissions        | Pull requests: read-only; Metadata: read-only                      |
+| Workspace scope    | One connection and one selected installation per workspace         |
+| Provider authority | GitHub owns PR observations; Work owns issue status                |
+| Revocation         | Disconnect locally, revoke the token, optionally uninstall the App |
 
-The first release only needs to read pull-request title, canonical URL, and
-open/closed/merged state. It does not need contents, checks, reviews, or write
-access.
+No contents, checks, reviews, write, or administration permission is requested.
+The integration never creates, merges, comments on, or closes a pull request.
+A PR observation never changes `work_issues.status`.
 
-## Required owner inputs
+## Authorization flow
 
-1. Create the GitHub App under the owning account/org.
-2. Set the callback URL to `https://<deployed-origin>/api/github/callback` for
-   each Beta and Stable origin (exact origins, no wildcard).
-3. Grant only **Pull requests: read** and **Metadata: read**. Do not grant
-   contents or write permissions.
-4. Choose a disposable test repository and a test pull request.
-5. Configure server-side values: `GITHUB_APP_ID`, `GITHUB_APP_SLUG`,
-   `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_CLIENT_ID`,
-   `GITHUB_APP_CLIENT_SECRET`, and a 32-byte `WORK_TOKEN_ENCRYPTION_KEY`.
-6. Confirm who owns the App, how it is revoked, and whether Beta and Stable use
-   the same App or separate installations.
+1. `POST /api/workspaces/{workspaceId}/github/connect` requires a verified
+   session and an owned workspace. It creates a random 32-byte state value,
+   stores only its SHA-256 hash with the user, workspace, observed connection
+   generation, and a 10-minute expiry, and encrypts the PKCE verifier.
+2. The browser is sent to the fixed GitHub URL
+   `https://github.com/login/oauth/authorize` with the client id, the callback
+   URL, `state`, `code_challenge`, `code_challenge_method=S256`, and
+   `scope=offline_access`.
+3. GitHub returns to `GET /api/github/callback`. This is a top-level cross-site
+   navigation, so no same-origin check applies. The route still requires a
+   verified Supabase session, consumes the state row atomically, decrypts the
+   verifier server-side, exchanges the code at the fixed
+   `https://github.com/login/oauth/access_token` endpoint, and proves identity
+   with `GET /user` on `https://api.github.com`.
+4. The saved connection is only updated when the generation recorded in the
+   state is still current. A replayed, expired, altered, cross-user, or denied
+   callback leaves the existing connection untouched.
+5. `GET /api/github/setup` is the App setup URL. Its `installation_id` value is
+   an untrusted hint and is ignored. The route redirects to the user's internal
+   settings. Installation selection only accepts ids returned by the verified
+   `GET /user/installations` enumeration.
 
-Do not enable the integration in production before the owner confirms these.
+The callback and setup URLs must be registered on the GitHub App for each
+deployed origin:
 
-## Callback and state design
+- `https://<origin>/api/github/callback`
+- `https://<origin>/api/github/setup`
 
-- `GET /api/github/connect` requires a verified session and a workspace the
-  user owns. It creates a random state value, stores only its SHA-256 hash with
-  the user, workspace, and a 10-minute expiry, then redirects to GitHub.
-- `GET /api/github/callback` requires a verified session, looks up the unconsumed
-  state hash, and rejects missing, altered, expired, replayed, or cross-user
-  state. It consumes the state in the same transaction that stores the
-  installation.
-- The callback binds `installation_id` to the workspace. A second workspace
-  cannot reuse the connection.
-- Installation tokens are minted on demand from the App private key, cached only
-  server-side with a short expiry, and never sent to the browser or written to
-  logs. Store the installation id and an encrypted token cache, not a
-  long-lived user token.
-- Disconnect deletes the usable credential and records that provider-side
-  uninstall is a separate owner action. Revoked or denied access marks the
-  connection unusable and hides stored private PR details.
+## Data and credential handling
 
-## PR linking and refresh rules
+- `work_github_connections` stores the GitHub numeric user id, login, encrypted
+  access and refresh tokens, expiry times, selected installation, generation,
+  token version, and refresh lease. Tokens are AES-256-GCM encrypted with a
+  random 96-bit IV and an authentication tag. Decryption failure fails closed.
+- `work_github_oauth_states` stores only the SHA-256 state hash and encrypted
+  PKCE verifier. Rows are single-use and expire.
+- `work_pull_requests` stores owner, repository, number, canonical URL, title,
+  state, last successful check time, a fixed error code, and refresh attempt
+  metadata. Metadata is hidden and cleared on disconnect.
+- Refresh tokens rotate and are single-use. A durable lease is claimed with a
+  compare-and-set before calling GitHub, then finalized only when the lease,
+  connection generation, token version, row identity, and refresh attempt still
+  match. An active lease returns a retryable conflict without handing out the
+  stored token. A lease left behind by a crashed worker (expired lease with a
+  lease id) is **stalled**: it is never reclaimed and its single-use refresh
+  token is never replayed; the workspace is marked unusable and must reconnect.
+  Only a missing lease permits a new refresh. A transient timeout, 5xx, or rate
+  limit preserves the last successful observation, marks it stale, and leaves
+  the lease in place; because a later attempt then sees a stalled lease, it
+  requires reconnect before refreshing again. A definitive authorization failure
+  clears tokens and hides data instead of replaying the refresh token.
+  A successful connect always bumps the connection generation and hides every
+  cached pull-request observation, including for the same GitHub account.
+  Switching the selected installation also bumps the generation and hides all
+  links in the same transaction. Only an explicit relink under the new
+  generation makes a link visible again; an old callback generation finalizes
+  nothing.
+- Requests pin `X-GitHub-Api-Version: 2026-03-10`, the REST API version
+  documented when this integration was written, so a future GitHub default
+  cannot change the pull-request payload.
+- Tokens never appear in browser payloads, URLs, logs, error messages, tests, or
+  git. No provider response text is echoed to the browser.
 
-- Accept only `https://github.com/<owner>/<repo>/pull/<number>`; reject other
-  hosts, credentials, ports, query strings, and non-PR paths.
-- Parse owner/repo/number and call GitHub with those values. Never fetch a
-  user-supplied URL.
-- Verify the installation can see the repository before storing or displaying
-  PR data.
-- Store title, canonical URL, state, last successful check time, and the last
-  error. A failed refresh preserves the last observation and marks it stale only
-  while authorization still exists.
-- GitHub owns PR state; Work owns issue state. No refresh, close, or merge
-  changes the issue's open/completed status.
-- Concurrent refreshes must not replace a newer observation with an older one;
-  a refresh finishing after unlink or disconnect must not restore the link.
+## Error behavior
 
-## Test plan for #14–#16
+The browser sees only a fixed taxonomy: `unconfigured`, `disconnected`,
+`reauthorization_required`, `installation_unavailable`, `not_found`,
+`rate_limited`, `outage`, `denied`, `conflict`, and `invalid_input`.
 
-- Connect a disposable installation, reload, disconnect, and verify the token
-  is not in any client payload or log.
-- Reject altered, expired, replayed, and cross-user callbacks.
-- Link a real PR, reload, refresh open/closed/merged states, and unlink.
-- Deny a private repository the installation cannot see; verify no title or URL
-  leaks before authorization.
-- Simulate a provider outage (stale observation, actionable error) separately
-  from revoked access (hide details, require reconnect).
-- Complete an issue, then merge the PR and refresh: the issue stays completed.
-- Repeat the refresh race after unlink/disconnect.
+- A definitive 401 or lost authorization marks the connection unusable, clears
+  tokens, hides PR metadata, and requires reconnect.
+- A lost installation or repository permission does the same.
+- A timeout, 5xx, or rate limit preserves the last successful observation,
+  marks it stale, and shows a retry action while the connection remains
+  authorized.
+- Unlink or disconnect during an in-flight refresh commits zero rows. A late
+  response cannot restore a link or expose removed data.
 
-## Non-claims
+## Required server configuration
 
-No GitHub connection, PR link, or refresh is implemented or verified in this
-release candidate. The workspace settings and issue detail deliberately show
-GitHub as unavailable rather than faking a connection.
+| Variable                         | Purpose                                                       |
+| -------------------------------- | ------------------------------------------------------------- |
+| `GITHUB_APP_CLIENT_ID`           | GitHub App client id                                          |
+| `GITHUB_APP_CLIENT_SECRET`       | GitHub App client secret                                      |
+| `GITHUB_APP_SLUG`                | App slug used for the install link                            |
+| `WORK_TOKEN_ENCRYPTION_KEY`      | Base64 32-byte AES-256-GCM key                                |
+| `WORK_GITHUB_DATABASE_URL`       | Restricted runtime login that is a member of the runtime role |
+| `WORK_GITHUB_DATABASE_CA_BASE64` | Optional base64 database CA for verified TLS                  |
+
+Configuration is read server-side. There is no `DATABASE_URL` fallback, no
+`service_role` key, and no privileged migration credential at runtime. A
+missing or malformed value disables the feature rather than throwing at import.
+
+Provisioning is operational, not part of a migration: the owner creates a
+LOGIN role that is a member of `work_github_runtime` and stores its connection
+string in `WORK_GITHUB_DATABASE_URL`. See
+[database.md](database.md#github-runtime-role). Never commit or migrate a
+password.
+
+## Rotation and revocation
+
+- Rotate `WORK_TOKEN_ENCRYPTION_KEY` by disconnecting affected workspaces,
+  rotating the key, and reconnecting. Existing ciphertext cannot be decrypted
+  with a new key; this is intentional.
+- Rotate the App client secret and client id in GitHub, then update the server
+  environment and reconnect workspaces as needed.
+- Disconnecting locally bumps the connection generation, invalidates OAuth
+  states and leases, deletes usable tokens, and hides stored PR metadata. Token
+  revocation is attempted best-effort after the local transaction commits.
+- Uninstalling the GitHub App from an account or repository is a separate
+  GitHub action. Uninstall or lost access makes refresh fail closed and requires
+  reconnect or a new installation.
+- The owner remains responsible for auditing the App, its permissions, its
+  installations, and its client secret.
+
+## Explicit non-claims
+
+- No live connection, installation, PR link, refresh, or revocation has been
+  observed in this environment.
+- There is no webhook receiver, polling loop, background job, PR creation, merge
+  action, or issue synchronization.
+- The user-to-server token flow is implemented and unit/database-tested offline;
+  provider acceptance with a disposable installation remains an owner step.

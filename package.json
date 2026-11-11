@@ -13,7 +13,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate:dev": "node scripts/migrate-dev.mjs",
     "test:smoke": "node scripts/smoke-production.mjs",
-    "test:db": "node scripts/migration-test.mjs",
+    "test:db": "node --conditions=react-server --experimental-strip-types scripts/migration-test.mjs",
     "test:unit": "node --experimental-strip-types --test scripts/*.test.mjs"
   },
   "dependencies": {

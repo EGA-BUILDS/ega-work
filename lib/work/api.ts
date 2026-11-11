@@ -30,11 +30,11 @@ export function jsonError(status: number, message: string): NextResponse {
 }
 
 /**
- * Rejects cross-site state-changing requests. The expected origin is resolved
- * from trusted public headers, not Next's internal request origin, so direct
- * 127.0.0.1 use and reverse proxies work.
+ * Resolves the trusted public origin for this request. The expected origin is
+ * resolved from configured `SITE_URL` or trusted public headers, not Next's
+ * internal request origin, so direct 127.0.0.1 use and reverse proxies work.
  */
-export function isSameOrigin(request: NextRequest): boolean {
+export function requestSiteOrigin(request: NextRequest): string | null {
    const expected = resolveSiteOrigin({
       configured: process.env.SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL,
       forwardedHost: request.headers.get('x-forwarded-host'),
@@ -43,10 +43,17 @@ export function isSameOrigin(request: NextRequest): boolean {
       defaultProtocol: request.nextUrl.protocol === 'http:' ? 'http' : 'https',
    });
 
+   return expected.ok ? expected.origin : null;
+}
+
+/**
+ * Rejects cross-site state-changing requests.
+ */
+export function isSameOrigin(request: NextRequest): boolean {
    return isTrustedRequestOrigin({
       origin: request.headers.get('origin'),
       fetchSite: request.headers.get('sec-fetch-site'),
-      expectedOrigin: expected.ok ? expected.origin : null,
+      expectedOrigin: requestSiteOrigin(request),
    });
 }
 
