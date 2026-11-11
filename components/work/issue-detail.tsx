@@ -10,17 +10,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import type { GithubIssueView } from '@/lib/work/github/types';
 import type { WorkIssue } from '@/lib/work/types';
 import { issueIdentifier } from '@/lib/work/validation';
+
+import { IssuePullRequest } from './issue-pull-request';
 
 export function IssueDetail({
    workspaceId,
    projectName,
    issue,
+   githubView,
 }: {
    workspaceId: string;
    projectName: string;
    issue: WorkIssue;
+   githubView: GithubIssueView;
 }) {
    const router = useRouter();
    const [title, setTitle] = useState(issue.title);
@@ -165,15 +170,7 @@ export function IssueDetail({
             </CardContent>
          </Card>
 
-         <Card>
-            <CardHeader>
-               <CardTitle>Pull request</CardTitle>
-               <CardDescription>
-                  GitHub linking is not available in this workspace yet. Completing or reopening
-                  this issue never depends on a pull request.
-               </CardDescription>
-            </CardHeader>
-         </Card>
+         <IssuePullRequest workspaceId={workspaceId} issueId={issue.id} initialView={githubView} />
       </div>
    );
 }

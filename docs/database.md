@@ -24,11 +24,31 @@ The configured development project also hosts other application tables in its
   isolated Beta and Stable projects remain an owner decision and are not
   established by a successful connection or migration.
 
-RLS is the authorization boundary. Migrations grant Work tables only to the
-Supabase `authenticated` role and revoke `anon`. Policies scope every row to a
-workspace whose `owner_id = auth.uid()`. User-facing requests go through the
-request-scoped Supabase client with the signed-in user's session; the
-privileged migration connection is never used by application code.
+RLS is the authorization boundary. Migrations grant the Work workspace,
+project, and issue tables only to the Supabase `authenticated` role and revoke
+`anon`. Policies scope every row to a workspace whose `owner_id = auth.uid()`.
+User-facing requests go through the request-scoped Supabase client with the
+signed-in user's session; the privileged migration connection is never used by
+application code.
+
+Migration `0002_github_app_user_tokens` moves the three GitHub integration
+tables out of the browser role entirely:
+
+- `work_pull_requests`, `work_github_connections`, and
+  `work_github_oauth_states` are revoked from `PUBLIC`, `anon`, and
+  `authenticated`, and their old browser policies are dropped.
+- The `work_github_runtime` role (NOLOGIN) is the only role with table
+  privileges. Its policies scope rows by
+  `public.work_current_workspace_id()` or `public.work_current_user_id()`,
+  which read `work.workspace_id` and `work.user_id` set per transaction by the
+  server. Both helpers are `STABLE`, not `SECURITY DEFINER`, and executable only
+  by the runtime role.
+- The runtime role receives `USAGE` on `public` and only the four DML privileges
+  on those three tables. It has no privileges on Work workspace/project/issue
+  tables, sequences, the migration journal, House tables, or `auth`.
+- Foreign-key checks do not require runtime `SELECT` on the parent Work tables.
+  The migration test proves a runtime insert with a cross-workspace issue fails
+  with a foreign-key error and a valid insert succeeds.
 
 Issue numbers are allocated per workspace by a `SECURITY DEFINER` before-insert
 trigger that increments only the calling owner's counter and checks
@@ -36,6 +56,31 @@ trigger that increments only the calling owner's counter and checks
 human-readable identifier is `W-<number>` within that workspace; the same
 number can exist in another workspace. Pull requests reference
 `(issue_id, workspace_id)` so a link can never cross workspaces.
+
+## GitHub runtime role
+
+Provisioning is an operational step; it is not stored in a migration and no
+password is committed:
+
+1. Create a LOGIN role and make it a member of the migration-created runtime
+   role. Use a unique password and a dedicated database user:
+
+   ```sql
+   create role work_github_login login password '<generated-secret>'
+      in role work_github_runtime;
+   ```
+
+2. Set `WORK_GITHUB_DATABASE_URL` to that login's connection string, for
+   example `postgresql://work_github_login:<encoded-secret>@db.example:5432/postgres`.
+   The application verifies at runtime that `current_user` is not a superuser,
+   does not bypass RLS, and is a member of `work_github_runtime`; anything else
+   fails closed.
+3. For a non-loopback host, TLS is always verified. If the VM does not trust the
+   database CA, set `WORK_GITHUB_DATABASE_CA_BASE64` to the base64-encoded CA.
+   Loopback hosts used by the local test path do not use TLS.
+4. Rotate the password through the database owner and update the server
+   environment. Disconnect and reconnect workspaces after rotating
+   `WORK_TOKEN_ENCRYPTION_KEY`; old ciphertext cannot be read with a new key.
 
 ## Change and apply the schema
 
@@ -46,18 +91,36 @@ number can exist in another workspace. Pull requests reference
 
 ## Test migrations and RLS
 
-`pnpm test:db` creates a disposable database on the configured development
-instance, creates minimal `auth.uid()`/role stubs, and reproduces Supabase's
-default public-schema grants before applying the committed migration history.
-It then checks that every migration is recorded, that re-running the migrator
-applies nothing new, that RLS is enabled on all six tables, that `anon` has no
-table or journal-sequence access, and that the counter table is unreachable by
-browser roles. Two simulated users prove workspace uniqueness, per-workspace
-concurrent numbering, isolation for all six tables, anonymous denial,
-cross-workspace issue and PR rejection, invalid-status rejection, and PR/issue
-status independence. It drops the database before exit and prints no
-credentials. The migration SQL itself is not idempotent; the journal is what
-prevents re-application.
+`pnpm test:db` uses a disposable local PostgreSQL server and never the shared
+Supabase project. It creates two temporary databases, creates minimal
+`auth.uid()`/role stubs, and reproduces Supabase's default public-schema grants
+before applying the committed migrations.
+
+The first database applies migrations `0000` and `0001`, inserts v1.0 workspace,
+connection, state, and pull-request rows as `authenticated`, then applies
+migration `0002` to prove existing rows and their encrypted token fields survive
+and new columns receive safe defaults.
+
+The second database applies the full history from empty, then checks:
+
+- every migration is recorded (`0000`, `0001`, `0002`) and re-running the
+  migrator applies nothing new;
+- RLS is enabled on all six Work tables and the old browser owner policies are
+  gone from the three integration tables;
+- `anon` and `authenticated` cannot SELECT, INSERT, UPDATE, or DELETE the three
+  integration tables, while `work_github_runtime` can;
+- the runtime role cannot read Work workspace/project/issue tables, House
+  example tables, `auth` tables, the migration journal, or its sequences;
+- two simulated users prove workspace uniqueness, per-workspace concurrent
+  numbering, browser isolation for workspace data, runtime A/B isolation for
+  integration data, foreign-key checks without parent `SELECT`, one PR per
+  issue, and PR/issue status independence;
+- one-time OAuth state claim and the refresh/token CAS races are single-winner;
+  unlink or disconnect during a refresh commits zero rows, and a stale callback
+  generation cannot reconnect.
+
+It drops both databases before exit and prints no credentials. The migration SQL
+is not idempotent; the journal is what prevents re-application.
 
 In CI no development secret is available. The workflow starts the runner's local
 PostgreSQL service and sets:
@@ -68,8 +131,8 @@ TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres pnpm te
 
 The test script only accepts a non-local `TEST_DATABASE_URL` when
 `TEST_DATABASE_ALLOW_REMOTE=1` is set explicitly. On a local server it creates
-the `anon` and `authenticated` roles when they are missing; those roles are
-cluster-scoped, matching Supabase.
+the `anon` and `authenticated` roles when they are missing; those roles and
+`work_github_runtime` are cluster-scoped, matching Supabase.
 
 ## Rollback and recovery
 

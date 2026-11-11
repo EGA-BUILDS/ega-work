@@ -1,22 +1,41 @@
-import Link from 'next/link';
-
-import { Badge } from '@/components/ui/badge';
+import { GithubSettings } from '@/components/work/github-settings';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { githubAppInstallUrl, readGithubConfig } from '@/lib/work/github/config';
+import { getGithubStatus } from '@/lib/work/github/service';
 import { loadWorkspacePage } from '@/lib/work/page';
 
 export const dynamic = 'force-dynamic';
 
+type GithubNotice = 'connected' | 'denied' | 'error' | 'setup' | null;
+
+const GITHUB_NOTICES = new Set<GithubNotice>(['connected', 'denied', 'error', 'setup']);
+
+function githubNotice(value: string | string[] | undefined): GithubNotice {
+   const first = Array.isArray(value) ? value[0] : value;
+   if (!first) {
+      return null;
+   }
+   return GITHUB_NOTICES.has(first as GithubNotice) ? (first as GithubNotice) : null;
+}
+
 export default async function WorkspaceSettingsPage({
    params,
+   searchParams,
 }: {
    params: Promise<{ workspaceId: string }>;
+   searchParams: Promise<{ github?: string | string[] }>;
 }) {
    const { workspaceId } = await params;
    const context = await loadWorkspacePage(workspaceId);
    if (context.kind !== 'ok') {
       return null;
    }
+
+   const query = await searchParams;
+   const status = await getGithubStatus(context.workspace.id);
+   const config = readGithubConfig();
+   const installUrl = config.configured ? githubAppInstallUrl(config.config) : null;
 
    return (
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
@@ -56,28 +75,12 @@ export default async function WorkspaceSettingsPage({
             </CardContent>
          </Card>
 
-         <Card>
-            <CardHeader>
-               <CardTitle className="flex items-center gap-2">
-                  GitHub <Badge variant="secondary">Not connected</Badge>
-               </CardTitle>
-               <CardDescription>
-                  GitHub authorization is not configured in this environment. Pull-request linking
-                  and refresh stay unavailable until a provider connection is configured. Completing
-                  an issue never depends on GitHub.
-               </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-               <Button variant="outline" disabled>
-                  Connect GitHub
-               </Button>
-               <Button variant="ghost" asChild>
-                  <Link href="/demo" target="_blank" rel="noopener noreferrer">
-                     View labeled demo
-                  </Link>
-               </Button>
-            </CardContent>
-         </Card>
+         <GithubSettings
+            workspaceId={context.workspace.id}
+            initialStatus={status}
+            installUrl={installUrl}
+            notice={githubNotice(query.github)}
+         />
 
          <Card>
             <CardHeader>

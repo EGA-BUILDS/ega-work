@@ -1,107 +1,134 @@
 # Release readiness
 
-Status: **code and documentation ready for review; Beta acceptance not performed.**
-This is not a claim that the release is accepted or deployed.
+Status: **code and documentation ready for review; no Beta branch, isolated Beta
+database, promotion, or live GitHub acceptance was performed.**
+
+This is not a claim that v1.1 is accepted, deployed, or proven against GitHub.
 
 ## Candidate
 
 - Repository: `EGA-BUILDS/ega-work`
-- Branch: `main`
-- Record the exact `main` SHA in the acceptance report when Beta testing starts.
-- The last merged code slice before release documentation was `387205a`
-  (account recovery). Release documentation follows it; no application code
-  changed after that merge.
+- Base: `main` at `976885f` (tag `v1.0.0`).
+- Candidate branch: `feat/v1.1-github-pr-tracking`.
+- The exact candidate SHA is recorded in the implementation handoff. It is not
+  merged.
+- Target: `main` plus the shared Supabase development project. There is no Beta
+  branch, isolated Beta database, or Stable promotion process for this slice.
 
 ## Database
 
-- Migrations `0000_work_foundation` and `0001_work_hardening` are committed.
-- The configured development project has both migrations applied. It is a
-  shared project; Work uses the `work_` prefix and `public.__ega_work_migrations`.
-- Beta and Stable database isolation is **not established**. Use a separate,
-  owner-confirmed Beta project/database before acceptance. Do not reuse the
-  shared development data.
-- Production migrations require separate authorization.
+- Migrations `0000_work_foundation`, `0001_work_hardening`, and
+  `0002_github_app_user_tokens` are committed.
+- Migration `0002` is forward-only. It adds the GitHub token/lease columns,
+  nulls the obsolete `NOT NULL` token constraints, moves the three integration
+  tables off browser roles, creates `work_github_runtime`, and adds the
+  request-scoped runtime policies.
+- Migration `0002` was **not applied to the shared Supabase project** by this
+  implementation. Applying a development migration requires a target check and
+  is a separate action; production migrations require separate authorization.
+- The GitHub runtime login role (`work_github_login` or similar) is not created
+  by a migration. An owner must provision it, make it a member of
+  `work_github_runtime`, and supply `WORK_GITHUB_DATABASE_URL`. No password is
+  committed.
+- `docs/database.md` records provisioning, rotation, and recovery.
 
 ## Automated evidence
 
-| Check              | Result                                                                        |
-| ------------------ | ----------------------------------------------------------------------------- |
-| `pnpm test:unit`   | 28+ tests: auth, password, search, validation, demo boundary, dates           |
-| `pnpm typecheck`   | Pass on the reviewed candidates                                               |
-| `pnpm test:db`     | Fresh apply, no-op reapply, two-user/anon RLS, per-workspace numbering, PR FK |
-| `pnpm build`       | Pass on the reviewed candidates                                               |
-| `pnpm test:smoke`  | Public routes, labeled demo, login protection, recovery callback              |
-| CI **Check**       | Passed for each merged PR head                                                |
-| Independent review | Every merged slice was reviewed; material findings fixed and re-reviewed      |
+| Check              | Result                                                                                   |
+| ------------------ | ---------------------------------------------------------------------------------------- |
+| `pnpm exec eslint` | Passed on every changed TypeScript file                                                  |
+| `pnpm typecheck`   | Passed on the candidate                                                                  |
+| `pnpm test:unit`   | 65 tests passed, including GitHub URL, crypto, provider, config, sanitizer, and boundary |
+| `pnpm test:db`     | Passed on local disposable PostgreSQL: v1.0 upgrade, fresh apply, RLS/runtime role, CAS  |
+| `pnpm build`       | Passed on the candidate                                                                  |
+| `pnpm test:smoke`  | Passed against the production build; rendered routes only, not provider acceptance       |
+| Independent review | Not performed; required before merge                                                     |
 
-## Beta acceptance matrix (owner)
+Command results and any blocked check are reported in the handoff. A green
+local check does not replace CI or independent review.
 
-Use isolated Beta data and two disposable accounts.
+## GitHub acceptance gaps (owner)
+
+Live provider acceptance was **not performed**. No GitHub App credentials,
+installation, repository, or test pull request exist in this environment.
+
+- [ ] Create the GitHub App with only **Pull requests: read-only** and
+      **Metadata: read-only**. Do not grant contents or write permissions.
+- [ ] Register `https://<origin>/api/github/callback` and
+      `https://<origin>/api/github/setup` for each deployed origin. No wildcard.
+- [ ] Configure `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`,
+      `GITHUB_APP_SLUG`, a base64 32-byte `WORK_TOKEN_ENCRYPTION_KEY`, the
+      restricted `WORK_GITHUB_DATABASE_URL`, and optional
+      `WORK_GITHUB_DATABASE_CA_BASE64`.
+- [ ] Apply migration `0002` to the intended development or acceptance
+      database after confirming the target.
+- [ ] Provision `work_github_login`, verify it is a member of
+      `work_github_runtime` and not a superuser.
+- [ ] Connect a disposable account, choose an installation, link a disposable
+      pull request, reload, and confirm the saved observation.
+- [ ] Refresh open, closed, and merged states. Confirm the issue's manual status
+      never changes.
+- [ ] Reject a replayed, expired, altered, cross-user, and denied callback.
+- [ ] Confirm a PR the installation cannot see produces no title or URL leak.
+- [ ] Simulate a provider outage (stale observation, retry) separately from a
+      revoked authorization (tokens cleared, PR details hidden, reconnect).
+- [ ] Unlink or disconnect while a refresh is in flight and confirm the late
+      response restores nothing.
+- [ ] Confirm the token never appears in a browser payload, URL, log, or error.
+- [ ] Confirm uninstall and revocation ownership. Uninstall is a separate GitHub
+      action; local disconnect revokes the stored authorization best-effort.
+
+## v1.0 acceptance still required
 
 - [ ] Sign in with password and with a magic link; both reach the user's
       `/w/<workspaceId>`.
 - [ ] Reload and sign out/in; the same workspace returns and private pages
       require a session.
-- [ ] Create a project; it appears after reload and a new session.
-- [ ] Create an issue; it gets a per-workspace `W-<number>` and appears in the
-      project and My issues.
-- [ ] Edit project and issue; changes persist. Force a stale edit and confirm
-      the 409 conflict is visible without losing input.
-- [ ] Complete and reopen the issue; both persist in project and My issues.
-- [ ] If GitHub is configured, merge or close the linked PR and refresh: the
-      PR observation changes, the issue's manual status does not.
-- [ ] If GitHub is configured, unlink or disconnect while a refresh is in
-      flight: the late response cannot restore the link or expose removed data.
-- [ ] Search by project name, issue title, and `W-<number>`; empty/no-match/error
-      states are honest.
-- [ ] User B cannot open user A's workspace, project, or issue by changing
-      identifiers, and cannot use user A's API paths.
-- [ ] A failed save shows an error and does not create a fake record.
-- [ ] The demo is reachable and labeled; a non-demo `/[orgId]` path cannot render
-      fixtures.
+- [ ] Create a project and issue; both persist after reload.
+- [ ] Edit with a stale version and confirm the visible 409 conflict.
+- [ ] Complete and reopen an issue; both persist.
+- [ ] Search by project name, issue title, and `W-<number>`.
+- [ ] User B cannot open or mutate user A's workspace, project, issue, or API
+      paths.
 - [ ] Request a recovery link, set a password, sign in, and return to the same
-      workspace. Expired links are actionable.
-- [ ] Verify the sign-out failure state with `?error=signout`.
-- [ ] GitHub connect/link/refresh is either configured and tested with a
-      disposable PR, or explicitly marked unavailable. Do not accept a fake
-      GitHub state.
+      workspace.
+- [ ] Confirm the sign-out failure state with `?error=signout`.
 
-## GitHub
+## Approvals and operational checks
 
-No provider is configured. See
-[github-integration-decision.md](github-integration-decision.md). Issues #13–#16
-remain blocked until the owner confirms the App/OAuth choice, test repository,
-callback origins, and server credentials.
-
-## Operational checks
-
-- Confirm Supabase Auth: email confirmation, allowed callback URLs, recovery
-  template, and whether signup is open.
-- Confirm `SITE_URL` is set for the deployment; production email links fail
-  closed without it.
-- Confirm secrets are server-side: Supabase anon key only in the browser,
-  Postgres migration credentials never in application requests, no service-role
-  key.
-- Confirm logs exclude tokens, passwords, connection strings, and private PR
-  details.
-- Confirm backups and a recovery owner for the Beta database.
-- Review inherited Circle license notices before promoting to Stable.
+- Independent review of the exact candidate revision is required before merge.
+  Self-review is not independent review.
+- A human owner must approve the GitHub App creation, permissions, callback
+  origins, install scope, and test repository.
+- Confirm logs exclude tokens, passwords, connection strings, PKCE verifiers,
+  and private pull-request details.
+- Confirm no `service_role`, privileged `DATABASE_URL`, or App private key is
+  present in the runtime environment.
+- Confirm backups and a recovery owner for the target database.
+- Review inherited Circle license notices before any promotion.
 
 ## Rollback and recovery
 
-- Application: redeploy the previous known-good `main` revision. No database
-  changes are required for the workspace/project/issue slice.
-- Database: migrations are forward-only. Restore the Beta project from a
-  Supabase backup or rebuild from the committed history. Do not edit or delete
-  an applied migration.
-- GitHub (when implemented): disconnect the installation and revoke it
-  provider-side; delete stored installation/token records.
+- Application: redeploy the previous known-good `main` revision. The v1.0
+  workspace/project/issue journey does not depend on the GitHub feature.
+- Database: migrations are forward-only. Migration `0002` does not drop Work
+  data tables. To recover a development mistake, restore the target from a
+  Supabase backup or create a fresh database and apply the committed history.
+  Do not edit or delete an applied migration.
+- GitHub: disconnect the workspace and revoke the user authorization. Uninstall
+  the App from the account or repository separately. Delete stored integration
+  rows only through an authorized operational procedure; never by weakening RLS.
+- If `WORK_TOKEN_ENCRYPTION_KEY` is lost or rotated without reconnecting, stored
+  tokens cannot be decrypted. Disconnect and reconnect affected workspaces.
 
 ## Known limitations
 
-- Live signed-in verification, cross-user browser switching, and email delivery
-  were not possible in the implementation environment.
-- GitHub authorization, PR linking, and refresh are not implemented.
-- Search and all writes depend on the configured Supabase project having the
-  Work migrations applied.
-- Beta acceptance and Stable promotion are manual owner decisions.
+- Live signed-in verification, cross-user browser switching, email delivery,
+  GitHub authorization, installation selection, PR linking, refresh, and
+  revocation were not possible in the implementation environment.
+- Browser interaction and keyboard behavior for the new settings and PR cards
+  were not observed against a running deployment.
+- Search and writes depend on the target database having the Work migrations
+  applied.
+- Beta acceptance and any Stable promotion are manual owner decisions; neither
+  is established by this document.
