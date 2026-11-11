@@ -2,6 +2,10 @@ import type { PullRequestReference } from './url';
 
 export const GITHUB_API_ORIGIN = 'https://api.github.com';
 export const GITHUB_OAUTH_TOKEN_URL = 'https://github.com/login/oauth/access_token';
+// Pinned to the REST API version documented when this integration was written;
+// GitHub keeps named versions available so a future default cannot change the
+// pull-request payload under the app.
+export const GITHUB_API_VERSION = '2026-03-10';
 
 export const REQUEST_TIMEOUT_MS = 10_000;
 export const MAX_RESPONSE_BYTES = 1024 * 1024;
@@ -214,7 +218,7 @@ function apiHeaders(token: string): Record<string, string> {
       'Accept': 'application/vnd.github+json',
       'Authorization': `Bearer ${token}`,
       'User-Agent': 'ega-work',
-      'X-GitHub-Api-Version': '2022-11-28',
+      'X-GitHub-Api-Version': GITHUB_API_VERSION,
    };
 }
 
@@ -503,7 +507,7 @@ export async function revokeAccessToken(
                   'Authorization': `Basic ${basic}`,
                   'Content-Type': 'application/json',
                   'User-Agent': 'ega-work',
-                  'X-GitHub-Api-Version': '2022-11-28',
+                  'X-GitHub-Api-Version': GITHUB_API_VERSION,
                },
                body: JSON.stringify({ access_token: input.accessToken }),
                cache: 'no-store',

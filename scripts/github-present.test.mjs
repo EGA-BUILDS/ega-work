@@ -110,7 +110,7 @@ test('connection status is honest about configuration and usability', () => {
    assert.equal(presentStatus(true, null).status, 'disconnected');
    assert.equal(presentStatus(true, null, true).status, 'unavailable');
 
-   const connected = presentStatus(true, {
+   const connectedRow = {
       workspace_id: '00000000-0000-4000-8000-000000000001',
       provider_user_id: '42',
       login: 'octocat',
@@ -130,12 +130,31 @@ test('connection status is honest about configuration and usability', () => {
       connected_at: '2026-11-11T10:00:00.000Z',
       revoked_at: null,
       updated_at: '2026-11-11T10:00:00.000Z',
-   });
+   };
+
+   const connected = presentStatus(true, connectedRow);
 
    assert.equal(connected.status, 'connected');
    assert.equal(connected.login, 'octocat');
    assert.equal(connected.installationId, '12345');
    assert.equal(JSON.stringify(connected).includes('cipher'), false);
+
+   const revoked = presentStatus(true, {
+      ...connectedRow,
+      revoked_at: '2026-11-11T11:00:00.000Z',
+      token_ciphertext: null,
+      token_iv: null,
+      token_tag: null,
+   });
+   assert.equal(revoked.status, 'reauthorization_required');
+   assert.equal(revoked.login, null);
+   assert.equal(revoked.installationId, null);
+
+   const missingToken = presentStatus(true, {
+      ...connectedRow,
+      token_ciphertext: null,
+   });
+   assert.equal(missingToken.status, 'reauthorization_required');
 });
 
 test('installation sanitization keeps only display fields', () => {

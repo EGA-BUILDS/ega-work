@@ -4,12 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { Pool, type PoolClient } from 'pg';
 
 import type { GithubConfig } from './config';
-import type {
-   GithubConnectionRecord,
-   GithubOauthStateRecord,
-   GithubTimestamp,
-   PullRequestRecord,
-} from './types';
+import { classifyConnectionToken } from './token';
+import type { GithubConnectionRecord, GithubOauthStateRecord, PullRequestRecord } from './types';
 
 type Context = Readonly<{ workspaceId: string; userId: string }>;
 
@@ -17,21 +13,16 @@ type PoolEntry = Readonly<{ key: string; pool: Pool; ready: Promise<void> }>;
 
 const globalForGithub = globalThis as unknown as { __egaWorkGithubPool?: PoolEntry };
 
-function timestamp(value: GithubTimestamp): Date | null {
-   if (!value) {
-      return null;
-   }
-   const date = value instanceof Date ? value : new Date(value);
-   return Number.isNaN(date.getTime()) ? null : date;
-}
-
 function poolKey(config: GithubConfig): string {
    return `${config.databaseUrl}\u0000${config.databaseCa ? 'ca' : 'default'}`;
 }
 
 function createPool(config: GithubConfig): Pool {
    const url = new URL(config.databaseUrl);
-   const loopback = ['localhost', '127.0.0.1', '::1'].includes(url.hostname);
+   const loopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(url.hostname);
+   if (loopback && process.env.NODE_ENV === 'production') {
+      throw new Error('loopback integration database is not allowed in production');
+   }
    return new Pool({
       connectionString: config.databaseUrl,
       ssl: loopback
@@ -59,16 +50,32 @@ async function assertRestrictedRole(pool: Pool): Promise<void> {
       rolsuper: boolean;
       rolbypassrls: boolean;
       member: boolean;
+      owned: number;
    }>(`
       select r.rolsuper,
              r.rolbypassrls,
-             pg_has_role(current_user, 'work_github_runtime', 'USAGE') as member
+             pg_has_role(current_user, 'work_github_runtime', 'USAGE') as member,
+             (
+                select count(*)::int
+                from pg_class c
+                join pg_namespace n on n.oid = c.relnamespace
+                where n.nspname = 'public'
+                  and c.relname = any(array[
+                     'work_pull_requests',
+                     'work_github_connections',
+                     'work_github_oauth_states'
+                  ])
+                  and c.relowner in (
+                     r.oid,
+                     (select oid from pg_roles where rolname = 'work_github_runtime')
+                  )
+             ) as owned
       from pg_roles r
       where r.rolname = current_user
    `);
 
    const row = result.rows[0];
-   if (!row || row.rolsuper || row.rolbypassrls || !row.member) {
+   if (!row || row.rolsuper || row.rolbypassrls || !row.member || row.owned > 0) {
       throw new Error('restricted integration role required');
    }
 }
@@ -232,6 +239,7 @@ export async function saveConnection(
          if (current.connection_generation !== input.stateGeneration) {
             return { kind: 'stale' };
          }
+         const sameProvider = current.provider_user_id === input.providerUserId;
          const result = await client.query<GithubConnectionRecord>(
             `update work_github_connections
              set provider_user_id = $2,
@@ -245,6 +253,7 @@ export async function saveConnection(
                  refresh_token_tag = $10,
                  refresh_token_expires_at = $11,
                  installation_id = case when provider_user_id = $2 then installation_id else null end,
+                 connection_generation = connection_generation + 1,
                  token_version = token_version + 1,
                  refresh_lease_id = null,
                  refresh_lease_expires_at = null,
@@ -267,7 +276,20 @@ export async function saveConnection(
                input.refreshExpiresAt,
             ]
          );
-         return { kind: 'saved', row: result.rows[0] };
+         const saved = result.rows[0];
+
+         if (sameProvider) {
+            await client.query(
+               `update work_pull_requests
+                set connection_generation = $2, updated_at = now()
+                where workspace_id = $1`,
+               [input.workspaceId, saved.connection_generation]
+            );
+         } else {
+            await saveHiddenPullRequests(client, input.workspaceId);
+         }
+
+         return { kind: 'saved', row: saved };
       }
 
       if (input.stateGeneration !== 0) {
@@ -279,7 +301,7 @@ export async function saveConnection(
             (workspace_id, provider_user_id, login, token_ciphertext, token_iv, token_tag,
              token_expires_at, refresh_token_ciphertext, refresh_token_iv, refresh_token_tag,
              refresh_token_expires_at, connection_generation, token_version)
-          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, 1)
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, 1)
           returning *`,
          [
             input.workspaceId,
@@ -295,7 +317,14 @@ export async function saveConnection(
             input.refreshExpiresAt,
          ]
       );
-      return { kind: 'saved', row: result.rows[0] };
+      const inserted = result.rows[0];
+      await client.query(
+         `update work_pull_requests
+          set connection_generation = $2, updated_at = now()
+          where workspace_id = $1`,
+         [input.workspaceId, inserted.connection_generation]
+      );
+      return { kind: 'saved', row: inserted };
    });
 }
 
@@ -390,6 +419,12 @@ export async function disconnectConnection(
    );
 }
 
+/**
+ * Hides linked pull requests and clears private observation metadata. The
+ * repo identity columns stay because they are NOT NULL link identity; hidden
+ * rows are never projected to the browser. Callers must move the connection
+ * generation so a late refresh cannot finalize against them.
+ */
 async function saveHiddenPullRequests(client: PoolClient, workspaceId: string): Promise<void> {
    await client.query(
       `update work_pull_requests
@@ -461,6 +496,7 @@ export async function markConnectionBroken(
 export type TokenClaim =
    | { kind: 'fresh'; row: GithubConnectionRecord }
    | { kind: 'leased' }
+   | { kind: 'stalled' }
    | { kind: 'unusable' }
    | { kind: 'claimed'; row: GithubConnectionRecord; leaseId: string };
 
@@ -468,6 +504,11 @@ export type TokenClaim =
  * Claims the single refresh lease for an expiring access token. The row lock
  * makes concurrent callers single-winner; the finalize step later requires the
  * same lease, generation, and token version.
+ *
+ * A lease that was never released (worker crash) is reported as `stalled` and
+ * is never reclaimed, because the stored refresh token may already have been
+ * consumed by the previous worker. A new lease is only claimed when none is
+ * present.
  */
 export async function claimTokenRefresh(
    config: GithubConfig,
@@ -479,29 +520,22 @@ export async function claimTokenRefresh(
          [workspaceId]
       );
       const row = firstRow(result.rows);
-      if (!row || row.revoked_at) {
+      if (!row) {
          return { kind: 'unusable' };
       }
 
-      const hasAccess = Boolean(row.token_ciphertext && row.token_iv && row.token_tag);
-      const accessExpiry = timestamp(row.token_expires_at);
-      if (hasAccess) {
-         if (accessExpiry === null || accessExpiry.getTime() > Date.now() + 60_000) {
-            return { kind: 'fresh', row };
-         }
+      const state = classifyConnectionToken(row);
+      if (state.kind === 'usable') {
+         return { kind: 'fresh', row };
       }
-
-      const hasRefresh = Boolean(
-         row.refresh_token_ciphertext && row.refresh_token_iv && row.refresh_token_tag
-      );
-      const refreshExpiry = timestamp(row.refresh_token_expires_at);
-      if (!hasRefresh || (refreshExpiry !== null && refreshExpiry.getTime() <= Date.now())) {
-         return { kind: 'unusable' };
-      }
-
-      const leaseExpiry = timestamp(row.refresh_lease_expires_at);
-      if (row.refresh_lease_id && leaseExpiry && leaseExpiry.getTime() > Date.now()) {
+      if (state.kind === 'leased') {
          return { kind: 'leased' };
+      }
+      if (state.kind === 'stalled') {
+         return { kind: 'stalled' };
+      }
+      if (state.kind === 'unusable') {
+         return { kind: 'unusable' };
       }
 
       const leaseId = randomUUID();
@@ -511,10 +545,16 @@ export async function claimTokenRefresh(
               refresh_lease_expires_at = now() + interval '30 seconds',
               updated_at = now()
           where workspace_id = $1
+            and refresh_lease_id is null
+            and revoked_at is null
           returning *`,
          [workspaceId, leaseId]
       );
-      return { kind: 'claimed', row: claimed.rows[0], leaseId };
+      const claimedRow = firstRow(claimed.rows);
+      if (!claimedRow) {
+         return { kind: 'leased' };
+      }
+      return { kind: 'claimed', row: claimedRow, leaseId };
    });
 }
 
@@ -573,21 +613,6 @@ export async function finalizeTokenRefresh(
          ]
       );
       return firstRow(result.rows);
-   });
-}
-
-export async function releaseTokenLease(
-   config: GithubConfig,
-   workspaceId: string,
-   leaseId: string
-): Promise<void> {
-   await withContext(config, { workspaceId }, async (client) => {
-      await client.query(
-         `update work_github_connections
-          set refresh_lease_id = null, refresh_lease_expires_at = null
-          where workspace_id = $1 and refresh_lease_id = $2`,
-         [workspaceId, leaseId]
-      );
    });
 }
 

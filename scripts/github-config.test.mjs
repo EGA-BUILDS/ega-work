@@ -75,6 +75,13 @@ test('malformed identifiers, slugs, and database URLs fail closed', () => {
       { WORK_GITHUB_DATABASE_URL: 'mysql://user:pass@db.example/db' },
       { WORK_GITHUB_DATABASE_URL: 'postgresql:///postgres' },
       { WORK_GITHUB_DATABASE_URL: 'postgresql://user:pass@/postgres' },
+      { WORK_GITHUB_DATABASE_URL: 'postgresql://user:pass@db.example' },
+      { WORK_GITHUB_DATABASE_URL: 'postgresql://user:pass@db.example/' },
+      { WORK_GITHUB_DATABASE_URL: 'postgresql://user:pass@db.example/db?sslmode=disable' },
+      { WORK_GITHUB_DATABASE_URL: 'postgresql://user:pass@db.example/db?sslmode=no-verify' },
+      { WORK_GITHUB_DATABASE_URL: 'postgresql://user:pass@db.example/db?host=evil.example' },
+      { WORK_GITHUB_DATABASE_URL: 'postgresql://user:pass@db.example/db?user=postgres' },
+      { WORK_GITHUB_DATABASE_URL: 'postgresql://user:pass@db.example/db#fragment' },
       { WORK_GITHUB_DATABASE_URL: 'postgresql://user:pass@db.example/db with space' },
       { WORK_GITHUB_DATABASE_URL: 'not a url' },
    ];

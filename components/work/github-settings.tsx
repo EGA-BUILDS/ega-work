@@ -95,6 +95,13 @@ export function GithubSettings({
    }, [refreshStatus, workspaceId]);
 
    useEffect(() => {
+      setStatus(initialStatus);
+      if (initialStatus.status !== 'connected') {
+         setInstallations(null);
+      }
+   }, [initialStatus]);
+
+   useEffect(() => {
       if (initialStatus.configured && initialStatus.status === 'connected') {
          void loadInstallations();
       }

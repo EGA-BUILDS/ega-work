@@ -25,6 +25,9 @@ DROP POLICY IF EXISTS "work_pull_requests_owner_all" ON "work_pull_requests";-->
 DROP POLICY IF EXISTS "work_github_connections_owner_all" ON "work_github_connections";--> statement-breakpoint
 DROP POLICY IF EXISTS "work_github_oauth_states_owner_all" ON "work_github_oauth_states";--> statement-breakpoint
 REVOKE ALL ON TABLE "work_pull_requests", "work_github_connections", "work_github_oauth_states" FROM PUBLIC, anon, authenticated;--> statement-breakpoint
+ALTER TABLE "work_pull_requests" FORCE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "work_github_connections" FORCE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE "work_github_oauth_states" FORCE ROW LEVEL SECURITY;--> statement-breakpoint
 
 DO $$
 BEGIN

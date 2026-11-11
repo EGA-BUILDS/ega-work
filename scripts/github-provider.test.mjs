@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
    GITHUB_API_ORIGIN,
+   GITHUB_API_VERSION,
    GITHUB_OAUTH_TOKEN_URL,
    GithubRequestError,
    classifyGithubStatus,
@@ -105,6 +106,8 @@ test('provider requests use hardcoded GitHub hosts and the bearer token', async 
    assert.equal(calls.length, 1);
    assert.equal(calls[0].url, `${GITHUB_API_ORIGIN}/repos/ega-builds/ega-work/pulls/12`);
    assert.equal(new Headers(calls[0].init.headers).get('Authorization'), 'Bearer ghu_token');
+   assert.equal(new Headers(calls[0].init.headers).get('X-GitHub-Api-Version'), GITHUB_API_VERSION);
+   assert.equal(GITHUB_API_VERSION, '2026-03-10');
    assert.equal(pullRequestApiPath(REFERENCE), '/repos/ega-builds/ega-work/pulls/12');
 });
 

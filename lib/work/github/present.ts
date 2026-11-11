@@ -77,7 +77,7 @@ export function presentStatus(
 
    const hasToken = Boolean(row.token_ciphertext && row.token_iv && row.token_tag);
    const status: GithubConnectionStatus =
-      row.revoked_at || !hasToken ? 'disconnected' : 'connected';
+      row.revoked_at || !hasToken ? 'reauthorization_required' : 'connected';
 
    return {
       configured: true,

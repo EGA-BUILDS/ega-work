@@ -26,6 +26,7 @@ import {
    type ProviderOptions,
 } from './provider';
 import * as store from './store';
+import { classifyConnectionToken } from './token';
 import type {
    GithubConnectionRecord,
    GithubConnectionStatus,
@@ -159,14 +160,21 @@ async function authorizedToken(
    }
 
    if (claim.kind === 'leased') {
-      const reread = await store.readConnection(config, actor.workspaceId);
-      if (reread && !reread.revoked_at) {
-         const token = decryptAccess(config, reread);
-         if (token) {
-            return { token, generation: reread.connection_generation, row: reread };
-         }
-      }
+      // Another worker owns an active refresh. Never hand out the stored
+      // access token here: this branch is only reached when it is missing or
+      // inside the expiry window.
       fail('conflict');
+   }
+
+   if (claim.kind === 'stalled') {
+      const reread = await store.readConnection(config, actor.workspaceId);
+      if (!reread || reread.revoked_at) {
+         fail('disconnected');
+      }
+      // The previous worker may already have consumed the single-use refresh
+      // token. Reclaiming it would risk replay, so require reconnect.
+      await broken(config, actor, reread.connection_generation);
+      fail('reauthorization_required');
    }
 
    if (claim.kind === 'unusable') {
@@ -184,7 +192,6 @@ async function authorizedToken(
       tag: claim.row.refresh_token_tag ?? '',
    });
    if (!refreshToken) {
-      await store.releaseTokenLease(config, actor.workspaceId, claim.leaseId);
       await broken(config, actor, claim.row.connection_generation);
       fail('reauthorization_required');
    }
@@ -200,12 +207,14 @@ async function authorizedToken(
          providerOptions
       );
    } catch (error) {
-      await store.releaseTokenLease(config, actor.workspaceId, claim.leaseId);
+      // GitHub may already have consumed the single-use refresh token even
+      // when the response was lost. Reusing it could replay a credential, so
+      // require reconnect instead of releasing the lease for another attempt.
+      await broken(config, actor, claim.row.connection_generation);
       if (
          error instanceof GithubRequestError &&
          (error.failure === 'reauthorization_required' || error.failure === 'denied')
       ) {
-         await broken(config, actor, claim.row.connection_generation);
          fail('reauthorization_required');
       }
       fail(providerCode(error));
@@ -241,7 +250,11 @@ async function authorizedToken(
 
    if (!finalized) {
       const reread = await store.readConnection(config, actor.workspaceId);
-      if (reread && !reread.revoked_at) {
+      if (
+         reread &&
+         reread.token_version > claim.row.token_version &&
+         classifyConnectionToken(reread).kind === 'usable'
+      ) {
          const token = decryptAccess(config, reread);
          if (token) {
             return { token, generation: reread.connection_generation, row: reread };
@@ -251,9 +264,12 @@ async function authorizedToken(
    }
 
    const token = decryptAccess(config, finalized);
-   if (!token) {
-      await broken(config, actor, finalized.connection_generation);
-      fail('reauthorization_required');
+   if (!token || classifyConnectionToken(finalized).kind !== 'usable') {
+      if (!token) {
+         await broken(config, actor, finalized.connection_generation);
+         fail('reauthorization_required');
+      }
+      fail('conflict');
    }
    return { token, generation: finalized.connection_generation, row: finalized };
 }
@@ -461,6 +477,13 @@ export async function completeGithubConnect(input: {
       });
 
       if (saved.kind === 'stale') {
+         // A concurrent callback won the generation. Revoke the token this
+         // callback just minted without delaying or throwing the failure.
+         await revokeAccessToken({
+            clientId: config.clientId,
+            clientSecret: config.clientSecret,
+            accessToken: tokens.accessToken,
+         }).catch(() => false);
          fail('denied');
       }
 
@@ -684,10 +707,18 @@ export async function refreshGithubPullRequest(
          await broken(config, actor, authorized.generation);
          fail('installation_unavailable');
       }
+      let code: GithubServiceErrorCode =
+         failure === 'not_found'
+            ? 'not_found'
+            : failure === 'rate_limited'
+              ? 'rate_limited'
+              : 'outage';
+
       if (failure === 'not_found') {
          // A deleted PR and a lost repository both surface as 404. Only treat
          // it as an installation problem when the verified repository list no
-         // longer contains this repository.
+         // longer contains this repository. Transient verification failures
+         // still finalize a stale observation and release the lease.
          try {
             await requireInstallationRepository(
                config,
@@ -697,22 +728,25 @@ export async function refreshGithubPullRequest(
                claimed.repo_name
             );
          } catch (verifyError) {
-            if (
-               verifyError instanceof GithubServiceError &&
-               verifyError.code === 'installation_unavailable'
-            ) {
-               await broken(config, actor, authorized.generation);
-               fail('installation_unavailable');
+            if (verifyError instanceof GithubServiceError) {
+               if (verifyError.code === 'installation_unavailable') {
+                  await broken(config, actor, authorized.generation);
+                  fail('installation_unavailable');
+               }
+               if (verifyError.code === 'reauthorization_required') {
+                  fail('reauthorization_required');
+               }
+               code =
+                  verifyError.code === 'rate_limited' ||
+                  verifyError.code === 'conflict' ||
+                  verifyError.code === 'outage'
+                     ? verifyError.code
+                     : 'outage';
+            } else {
+               code = 'outage';
             }
-            throw verifyError;
          }
       }
-      const code =
-         failure === 'not_found'
-            ? 'not_found'
-            : failure === 'rate_limited'
-              ? 'rate_limited'
-              : 'outage';
       const finalized = await store.finalizePullRequestRefresh(config, {
          workspaceId: actor.workspaceId,
          issueId,

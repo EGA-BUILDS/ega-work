@@ -34,15 +34,15 @@ This is not a claim that v1.1 is accepted, deployed, or proven against GitHub.
 
 ## Automated evidence
 
-| Check              | Result                                                                                   |
-| ------------------ | ---------------------------------------------------------------------------------------- |
-| `pnpm exec eslint` | Passed on every changed TypeScript file                                                  |
-| `pnpm typecheck`   | Passed on the candidate                                                                  |
-| `pnpm test:unit`   | 65 tests passed, including GitHub URL, crypto, provider, config, sanitizer, and boundary |
-| `pnpm test:db`     | Passed on local disposable PostgreSQL: v1.0 upgrade, fresh apply, RLS/runtime role, CAS  |
-| `pnpm build`       | Passed on the candidate                                                                  |
-| `pnpm test:smoke`  | Passed against the production build; rendered routes only, not provider acceptance       |
-| Independent review | Not performed; required before merge                                                     |
+| Check              | Result                                                                                  |
+| ------------------ | --------------------------------------------------------------------------------------- |
+| `pnpm exec eslint` | Passed on every changed TypeScript file                                                 |
+| `pnpm typecheck`   | Passed on the candidate                                                                 |
+| `pnpm test:unit`   | 72 tests passed, including GitHub URL, crypto, token lease, provider, config, sanitizer |
+| `pnpm test:db`     | Passed on local disposable PostgreSQL: v1.0 upgrade, fresh apply, RLS/runtime role, CAS |
+| `pnpm build`       | Passed on the candidate                                                                 |
+| `pnpm test:smoke`  | Passed against the production build; rendered routes only, not provider acceptance      |
+| Independent review | Not performed; required before merge                                                    |
 
 Command results and any blocked check are reported in the handoff. A green
 local check does not replace CI or independent review.

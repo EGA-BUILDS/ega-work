@@ -68,8 +68,18 @@ deployed origin:
 - Refresh tokens rotate and are single-use. A durable lease is claimed with a
   compare-and-set before calling GitHub, then finalized only when the lease,
   connection generation, token version, row identity, and refresh attempt still
-  match. A concurrent request re-reads once and returns a retryable conflict if
-  the lease is still held. Consumed refresh tokens are never retried in a loop.
+  match. An active lease returns a retryable conflict without handing out the
+  stored token. A lease left behind by a crashed worker (expired lease with a
+  lease id) is **stalled**: it is never reclaimed and its single-use refresh
+  token is never replayed; the workspace is marked unusable and must reconnect.
+  Only a missing lease permits a new refresh. A failed or ambiguous refresh
+  exchange marks the connection unusable instead of replaying the refresh token.
+  A successful connect bumps the connection generation; a same-provider
+  re-authorization carries linked PR rows forward, a different provider user
+  hides them, and an old callback generation finalizes nothing.
+- Requests pin `X-GitHub-Api-Version: 2026-03-10`, the REST API version
+  documented when this integration was written, so a future GitHub default
+  cannot change the pull-request payload.
 - Tokens never appear in browser payloads, URLs, logs, error messages, tests, or
   git. No provider response text is echoed to the browser.
 

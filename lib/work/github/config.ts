@@ -77,10 +77,14 @@ export function readGithubConfig(env: ReadonlyEnvironment = process.env): Github
       return { configured: false, reason: 'invalid' };
    }
 
+   const databasePath = database.pathname.replace(/^\/+/, '');
    if (
       (database.protocol !== 'postgres:' && database.protocol !== 'postgresql:') ||
       !database.hostname ||
-      !database.username
+      !database.username ||
+      !databasePath ||
+      database.search ||
+      database.hash
    ) {
       return { configured: false, reason: 'invalid' };
    }

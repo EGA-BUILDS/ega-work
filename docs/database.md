@@ -46,6 +46,8 @@ tables out of the browser role entirely:
 - The runtime role receives `USAGE` on `public` and only the four DML privileges
   on those three tables. It has no privileges on Work workspace/project/issue
   tables, sequences, the migration journal, House tables, or `auth`.
+- RLS is forced on all three integration tables, so even a non-superuser table
+  owner cannot bypass policies. The application role must not own them.
 - Foreign-key checks do not require runtime `SELECT` on the parent Work tables.
   The migration test proves a runtime insert with a cross-workspace issue fails
   with a foreign-key error and a valid insert succeeds.
@@ -56,6 +58,13 @@ trigger that increments only the calling owner's counter and checks
 human-readable identifier is `W-<number>` within that workspace; the same
 number can exist in another workspace. Pull requests reference
 `(issue_id, workspace_id)` so a link can never cross workspaces.
+
+Every successful GitHub connect bumps `work_github_connections.
+connection_generation`. A same-provider re-authorization moves existing connected
+pull-request rows to the new generation in the same transaction; a different
+GitHub provider user hides and clears them instead. A callback holding an older
+generation finalizes nothing. The generation is also part of every refresh and
+disconnect compare-and-set.
 
 ## GitHub runtime role
 
@@ -72,12 +81,16 @@ password is committed:
 
 2. Set `WORK_GITHUB_DATABASE_URL` to that login's connection string, for
    example `postgresql://work_github_login:<encoded-secret>@db.example:5432/postgres`.
-   The application verifies at runtime that `current_user` is not a superuser,
-   does not bypass RLS, and is a member of `work_github_runtime`; anything else
-   fails closed.
+   The URL must include a database path and must not contain query parameters or
+   a fragment; identity (`host`, `user`) and TLS (`sslmode`) cannot be overridden
+   from the connection string. The application verifies at runtime that
+   `current_user` is not a superuser, does not bypass RLS, is a member of
+   `work_github_runtime`, and owns none of the three integration tables.
 3. For a non-loopback host, TLS is always verified. If the VM does not trust the
    database CA, set `WORK_GITHUB_DATABASE_CA_BASE64` to the base64-encoded CA.
-   Loopback hosts used by the local test path do not use TLS.
+   Plaintext is allowed only for a loopback host (`localhost`, `127.0.0.1`,
+   `::1`, `[::1]`) outside production; a loopback URL is rejected when
+   `NODE_ENV=production`.
 4. Rotate the password through the database owner and update the server
    environment. Disconnect and reconnect workspaces after rotating
    `WORK_TOKEN_ENCRYPTION_KEY`; old ciphertext cannot be read with a new key.
@@ -116,8 +129,10 @@ The second database applies the full history from empty, then checks:
   integration data, foreign-key checks without parent `SELECT`, one PR per
   issue, and PR/issue status independence;
 - one-time OAuth state claim and the refresh/token CAS races are single-winner;
-  unlink or disconnect during a refresh commits zero rows, and a stale callback
-  generation cannot reconnect.
+  an expired lease with an owner is not reclaimable, release/finalize clear the
+  lease, unlink or disconnect during a refresh commits zero rows, a successful
+  re-authorization bumps the generation and carries linked PRs, and a stale
+  callback generation cannot reconnect.
 
 It drops both databases before exit and prints no credentials. The migration SQL
 is not idempotent; the journal is what prevents re-application.

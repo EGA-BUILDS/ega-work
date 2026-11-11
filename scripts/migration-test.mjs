@@ -329,6 +329,17 @@ async function testFresh({ adminUrl, ssl, adminPool, databases }) {
          assert(row?.relrowsecurity === true, `${table} must have row-level security enabled`);
       }
 
+      const forced = await pool.query(
+         `select relname
+          from pg_class c join pg_namespace n on n.oid = c.relnamespace
+          where n.nspname = 'public' and c.relname = any($1) and c.relforcerowsecurity`,
+         [INTEGRATION_TABLES]
+      );
+      assert(
+         forced.rows.length === INTEGRATION_TABLES.length,
+         'integration tables must force row-level security for non-superuser owners'
+      );
+
       for (const table of INTEGRATION_TABLES) {
          for (const privilege of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
             for (const role of ['anon', 'authenticated']) {
@@ -379,6 +390,19 @@ async function testFresh({ adminUrl, ssl, adminPool, databases }) {
             role.rolcreaterole === false,
          'the runtime role must be a minimal NOLOGIN role'
       );
+
+      const ownership = await pool.query(
+         `select c.relname, c.relowner = r.oid as owned
+          from pg_class c
+          join pg_namespace n on n.oid = c.relnamespace
+          join pg_roles r on r.rolname = 'work_github_runtime'
+          where n.nspname = 'public' and c.relname = any($1)`,
+         [INTEGRATION_TABLES]
+      );
+      for (const table of INTEGRATION_TABLES) {
+         const row = ownership.rows.find((item) => item.relname === table);
+         assert(row?.owned === false, `the runtime role must not own ${table}`);
+      }
 
       const policies = await pool.query(
          `select c.relname, p.polname
@@ -941,7 +965,7 @@ async function testCasRaces(pool, { workspaceA, issueA2, prA }) {
                 set refresh_lease_id = $2,
                     refresh_lease_expires_at = now() + interval '30 seconds'
                 where workspace_id = $1 and revoked_at is null
-                  and (refresh_lease_id is null or refresh_lease_expires_at < now())
+                  and refresh_lease_id is null
                 returning token_version`,
                [workspaceA, lease]
             );
@@ -954,7 +978,126 @@ async function testCasRaces(pool, { workspaceA, issueA2, prA }) {
       'only one concurrent token refresh lease may win'
    );
 
-   console.log('PASS CAS races: single-winner leases, unlink, disconnect, and stale reconnect');
+   const activeLease = await asRuntime(pool, workspaceA, USER_A, async (client) => {
+      const result = await client.query(
+         'select refresh_lease_id from work_github_connections where workspace_id = $1',
+         [workspaceA]
+      );
+      return result.rows[0].refresh_lease_id;
+   });
+   assert(typeof activeLease === 'string', 'the winning refresh lease must be stored');
+
+   // A worker crash leaves a lease behind. The store's claim SQL only accepts a
+   // null lease, so an expired lease is never reclaimed and its single-use
+   // refresh token is never replayed.
+   await asRuntime(pool, workspaceA, USER_A, (client) =>
+      client.query(
+         `update work_github_connections
+          set refresh_lease_expires_at = now() - interval '1 second'
+          where workspace_id = $1`,
+         [workspaceA]
+      )
+   );
+   const stalledReclaim = await asRuntime(pool, workspaceA, USER_A, async (client) => {
+      const result = await client.query(
+         `update work_github_connections
+          set refresh_lease_id = $2, refresh_lease_expires_at = now() + interval '30 seconds'
+          where workspace_id = $1 and refresh_lease_id is null
+          returning workspace_id`,
+         [workspaceA, leaseTwo]
+      );
+      return result.rowCount;
+   });
+   assert(stalledReclaim === 0, 'an expired lease with an owner must not be reclaimed');
+
+   const released = await asRuntime(pool, workspaceA, USER_A, async (client) => {
+      const result = await client.query(
+         `update work_github_connections
+          set refresh_lease_id = null, refresh_lease_expires_at = null
+          where workspace_id = $1 and refresh_lease_id = $2
+          returning refresh_lease_id`,
+         [workspaceA, activeLease]
+      );
+      return result.rowCount;
+   });
+   assert(released === 1, 'release must clear the owned lease');
+
+   const finalLease = '00000000-0000-4000-8000-0000000000a3';
+   const finalized = await asRuntime(pool, workspaceA, USER_A, async (client) => {
+      const claim = await client.query(
+         `update work_github_connections
+          set refresh_lease_id = $2, refresh_lease_expires_at = now() + interval '30 seconds'
+          where workspace_id = $1 and refresh_lease_id is null
+          returning refresh_lease_id`,
+         [workspaceA, finalLease]
+      );
+      assert(claim.rowCount === 1, 'a null lease can be claimed');
+      const result = await client.query(
+         `update work_github_connections
+          set token_ciphertext = 'cipher-final', token_iv = 'iv-final', token_tag = 'tag-final',
+              token_version = token_version + 1,
+              refresh_lease_id = null, refresh_lease_expires_at = null
+          where workspace_id = $1 and refresh_lease_id = $2
+          returning refresh_lease_id`,
+         [workspaceA, finalLease]
+      );
+      return result.rowCount === 1 && result.rows[0]?.refresh_lease_id === null;
+   });
+   assert(finalized === true, 'finalize must clear the refresh lease');
+
+   // Successful re-authorization bumps the connection generation and carries
+   // linked PR rows forward; an old callback generation then affects no rows.
+   const beforeGeneration = await asRuntime(pool, workspaceA, USER_A, async (client) => {
+      const result = await client.query(
+         'select connection_generation from work_github_connections where workspace_id = $1',
+         [workspaceA]
+      );
+      return result.rows[0].connection_generation;
+   });
+   const nextGeneration = beforeGeneration + 1;
+   const savedGeneration = await asRuntime(pool, workspaceA, USER_A, async (client) => {
+      const saved = await client.query(
+         `update work_github_connections
+          set connection_generation = connection_generation + 1
+          where workspace_id = $1 and connection_generation = $2
+          returning connection_generation`,
+         [workspaceA, beforeGeneration]
+      );
+      assert(saved.rowCount === 1, 'a current generation can be bumped');
+      await client.query(
+         `update work_pull_requests
+          set connection_generation = $2
+          where workspace_id = $1`,
+         [workspaceA, saved.rows[0].connection_generation]
+      );
+      const pr = await client.query(
+         `select distinct connection_generation
+          from work_pull_requests where workspace_id = $1`,
+         [workspaceA]
+      );
+      const stale = await client.query(
+         `update work_github_connections
+          set connection_generation = connection_generation + 1
+          where workspace_id = $1 and connection_generation = $2
+          returning workspace_id`,
+         [workspaceA, beforeGeneration]
+      );
+      return {
+         generation: saved.rows[0].connection_generation,
+         prGenerations: pr.rows.map((row) => row.connection_generation),
+         stale: stale.rowCount,
+      };
+   });
+   assert(savedGeneration.generation === nextGeneration, 'connect must bump the generation');
+   assert(
+      savedGeneration.prGenerations.every((generation) => generation === nextGeneration),
+      'linked PR rows must move to the new generation'
+   );
+   assert(savedGeneration.stale === 0, 'an old callback generation must not finalize');
+
+   console.log(
+      'PASS CAS races: single-winner leases, stalled lease, unlink, disconnect, generation'
+   );
 }
 
 function asRole(pool, role, workspaceId, userId, callback) {

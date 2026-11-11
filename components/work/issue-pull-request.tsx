@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -40,6 +40,14 @@ export function IssuePullRequest({
    const [message, setMessage] = useState<string | null>(null);
 
    const basePath = `/api/workspaces/${workspaceId}/issues/${issueId}/pull-request`;
+
+   // A server refresh can hide the link after disconnect or a broken
+   // connection. Resync so an already-open tab clears the stale card without a
+   // full reload; local refresh errors remain visible.
+   useEffect(() => {
+      setPullRequest(initialView.pullRequest);
+      setUrl('');
+   }, [initialView]);
 
    async function readResponse(response: Response): Promise<{
       pullRequest?: GithubPullRequestView | null;
