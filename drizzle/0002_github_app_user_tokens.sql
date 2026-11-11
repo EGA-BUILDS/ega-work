@@ -36,7 +36,18 @@ BEGIN
    END IF;
 END
 $$;--> statement-breakpoint
-ALTER ROLE "work_github_runtime" NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;--> statement-breakpoint
+DO $$
+BEGIN
+   IF EXISTS (
+      SELECT 1 FROM pg_roles
+      WHERE rolname = 'work_github_runtime'
+        AND (rolcanlogin OR rolsuper OR rolbypassrls
+             OR rolcreatedb OR rolcreaterole OR rolreplication)
+   ) THEN
+      RAISE EXCEPTION 'work_github_runtime has unsafe privileges';
+   END IF;
+END
+$$;--> statement-breakpoint
 GRANT USAGE ON SCHEMA public TO "work_github_runtime";--> statement-breakpoint
 
 CREATE OR REPLACE FUNCTION public.work_current_workspace_id() RETURNS uuid
