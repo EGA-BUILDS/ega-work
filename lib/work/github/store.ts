@@ -355,14 +355,14 @@ export async function selectInstallation(
       if (row.connection_generation !== input.generation) {
          return { kind: 'stale' };
       }
-      if (row.refresh_lease_id !== null) {
-         return { kind: 'conflict' };
-      }
       if (
          row.installation_id !== null &&
          String(row.installation_id) === String(input.installationId)
       ) {
          return { kind: 'unchanged', row };
+      }
+      if (row.refresh_lease_id !== null) {
+         return { kind: 'conflict' };
       }
 
       const visible = await client.query<{ count: number }>(

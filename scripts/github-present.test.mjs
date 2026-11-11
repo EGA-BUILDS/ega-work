@@ -162,6 +162,8 @@ test('read-path projection requires a usable connection and matching generation'
    const connection = {
       revoked_at: null,
       token_ciphertext: 'cipher',
+      token_iv: 'iv',
+      token_tag: 'tag',
       installation_id: '12345',
       connection_generation: 4,
    };
@@ -175,6 +177,8 @@ test('read-path projection requires a usable connection and matching generation'
       false
    );
    assert.equal(isPullRequestVisible({ ...connection, token_ciphertext: null }, visible), false);
+   assert.equal(isPullRequestVisible({ ...connection, token_iv: null }, visible), false);
+   assert.equal(isPullRequestVisible({ ...connection, token_tag: null }, visible), false);
    assert.equal(isPullRequestVisible({ ...connection, installation_id: null }, visible), false);
    assert.equal(isPullRequestVisible(connection, { ...visible, hidden: true }), false);
    assert.equal(isPullRequestVisible(connection, { ...visible, connection_generation: 3 }), false);

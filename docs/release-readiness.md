@@ -34,15 +34,15 @@ This is not a claim that v1.1 is accepted, deployed, or proven against GitHub.
 
 ## Automated evidence
 
-| Check              | Result                                                                                                                                       |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm exec eslint` | Passed on every changed TypeScript file                                                                                                      |
-| `pnpm typecheck`   | Passed on the candidate                                                                                                                      |
-| `pnpm test:unit`   | 73 tests passed, including GitHub URL, crypto, token lease, provider, config, sanitizer                                                      |
-| `pnpm test:db`     | Passed on local disposable PostgreSQL: upgrade, RLS/runtime role, CAS, real store/service                                                    |
-| `pnpm build`       | Passed on the candidate                                                                                                                      |
-| `pnpm test:smoke`  | Passed against the production build; rendered routes only, not provider acceptance                                                           |
-| Independent review | Review requested; CHANGES_REQUESTED on `e3a3843`; `55ee268` approved in the review handoff. The final head must be re-reviewed before merge. |
+| Check              | Result                                                                                                       |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `pnpm exec eslint` | Passed on every changed TypeScript file                                                                      |
+| `pnpm typecheck`   | Passed on the candidate                                                                                      |
+| `pnpm test:unit`   | 73 tests passed, including GitHub URL, crypto, token lease, provider, config, sanitizer                      |
+| `pnpm test:db`     | Passed on local disposable PostgreSQL: upgrade, RLS/runtime role, CAS, real store/service                    |
+| `pnpm build`       | Passed on the candidate                                                                                      |
+| `pnpm test:smoke`  | Passed against the production build; rendered routes only, not provider acceptance                           |
+| Independent review | Iterative independent review; the handoff records the exact approved SHA. Any new commit requires re-review. |
 
 Command results and any blocked check are reported in the handoff. A green
 local check does not replace CI or independent review.

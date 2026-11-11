@@ -117,7 +117,13 @@ export function isPullRequestVisible(
    connection: GithubConnectionRecord | null,
    row: PullRequestRecord | null
 ): boolean {
-   if (!connection || connection.revoked_at || !connection.token_ciphertext) {
+   if (
+      !connection ||
+      connection.revoked_at ||
+      !connection.token_ciphertext ||
+      !connection.token_iv ||
+      !connection.token_tag
+   ) {
       return false;
    }
    if (connection.installation_id === null) {
