@@ -1010,28 +1010,9 @@ async function testCasRaces(pool, { workspaceA, issueA2, prA }) {
    });
    assert(stalledReclaim === 0, 'an expired lease with an owner must not be reclaimed');
 
-   const released = await asRuntime(pool, workspaceA, USER_A, async (client) => {
-      const result = await client.query(
-         `update work_github_connections
-          set refresh_lease_id = null, refresh_lease_expires_at = null
-          where workspace_id = $1 and refresh_lease_id = $2
-          returning refresh_lease_id`,
-         [workspaceA, activeLease]
-      );
-      return result.rowCount;
-   });
-   assert(released === 1, 'release must clear the owned lease');
-
-   const finalLease = '00000000-0000-4000-8000-0000000000a3';
+   // The application never releases a stalled lease for another attempt.
+   // A successful finalize is the only path that clears it.
    const finalized = await asRuntime(pool, workspaceA, USER_A, async (client) => {
-      const claim = await client.query(
-         `update work_github_connections
-          set refresh_lease_id = $2, refresh_lease_expires_at = now() + interval '30 seconds'
-          where workspace_id = $1 and refresh_lease_id is null
-          returning refresh_lease_id`,
-         [workspaceA, finalLease]
-      );
-      assert(claim.rowCount === 1, 'a null lease can be claimed');
       const result = await client.query(
          `update work_github_connections
           set token_ciphertext = 'cipher-final', token_iv = 'iv-final', token_tag = 'tag-final',
@@ -1039,7 +1020,7 @@ async function testCasRaces(pool, { workspaceA, issueA2, prA }) {
               refresh_lease_id = null, refresh_lease_expires_at = null
           where workspace_id = $1 and refresh_lease_id = $2
           returning refresh_lease_id`,
-         [workspaceA, finalLease]
+         [workspaceA, activeLease]
       );
       return result.rowCount === 1 && result.rows[0]?.refresh_lease_id === null;
    });
@@ -1094,6 +1075,65 @@ async function testCasRaces(pool, { workspaceA, issueA2, prA }) {
       'linked PR rows must move to the new generation'
    );
    assert(savedGeneration.stale === 0, 'an old callback generation must not finalize');
+
+   // A transient refresh failure marks observations stale without clearing the
+   // last successful PR data, tokens, or the refresh lease.
+   const transient = await asRuntime(pool, workspaceA, USER_A, async (client) => {
+      await client.query(
+         `update work_pull_requests
+          set hidden = false, title = 'Preserved observation', state = 'closed',
+              url = 'https://github.com/ega-builds/other-repo/pull/4',
+              last_checked_at = timestamptz '2026-11-11 10:20:30+00',
+              is_stale = false, last_check_error = null
+          where id = $1`,
+         [prForDisconnect]
+      );
+      await client.query(
+         `update work_github_connections
+          set revoked_at = null, refresh_lease_id = $2,
+              refresh_lease_expires_at = now() + interval '30 seconds'
+          where workspace_id = $1`,
+         [workspaceA, leaseOne]
+      );
+      const snapshot = async () => {
+         const result = await client.query(
+            `select pr.title, pr.url, pr.state, pr.last_checked_at, pr.is_stale,
+                    pr.last_check_error, c.token_ciphertext, c.refresh_lease_id
+             from work_pull_requests pr
+             cross join work_github_connections c
+             where pr.id = $1 and c.workspace_id = $2`,
+            [prForDisconnect, workspaceA]
+         );
+         return result.rows[0];
+      };
+      const before = await snapshot();
+      await client.query(
+         `update work_pull_requests
+          set is_stale = true, last_check_error = 'outage', updated_at = now()
+          where workspace_id = $1 and hidden = false`,
+         [workspaceA]
+      );
+      return { before, after: await snapshot() };
+   });
+   assert(
+      transient.after.title === 'Preserved observation' &&
+         transient.after.url === 'https://github.com/ega-builds/other-repo/pull/4' &&
+         transient.after.state === 'closed',
+      'a transient refresh failure must preserve the last observation'
+   );
+   assert(
+      transient.after.last_checked_at.getTime() === transient.before.last_checked_at.getTime(),
+      'a transient refresh failure must preserve the last successful check time'
+   );
+   assert(
+      transient.after.is_stale === true && transient.after.last_check_error === 'outage',
+      'a transient refresh failure must mark the observation stale'
+   );
+   assert(
+      transient.after.token_ciphertext === transient.before.token_ciphertext &&
+         transient.after.refresh_lease_id === transient.before.refresh_lease_id,
+      'a transient refresh failure must not clear tokens or the lease'
+   );
 
    console.log(
       'PASS CAS races: single-winner leases, stalled lease, unlink, disconnect, generation'

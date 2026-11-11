@@ -1,7 +1,7 @@
 # Release readiness
 
-Status: **code and documentation ready for review; no Beta branch, isolated Beta
-database, promotion, or live GitHub acceptance was performed.**
+Status: **code and documentation ready for review; no live GitHub acceptance was
+performed.**
 
 This is not a claim that v1.1 is accepted, deployed, or proven against GitHub.
 
@@ -12,8 +12,8 @@ This is not a claim that v1.1 is accepted, deployed, or proven against GitHub.
 - Candidate branch: `feat/v1.1-github-pr-tracking`.
 - The exact candidate SHA is recorded in the implementation handoff. It is not
   merged.
-- Target: `main` plus the shared Supabase development project. There is no Beta
-  branch, isolated Beta database, or Stable promotion process for this slice.
+- Target: `main` plus the shared Supabase development project. This slice has no
+  separate acceptance environment or promotion step.
 
 ## Database
 
@@ -34,15 +34,15 @@ This is not a claim that v1.1 is accepted, deployed, or proven against GitHub.
 
 ## Automated evidence
 
-| Check              | Result                                                                                  |
-| ------------------ | --------------------------------------------------------------------------------------- |
-| `pnpm exec eslint` | Passed on every changed TypeScript file                                                 |
-| `pnpm typecheck`   | Passed on the candidate                                                                 |
-| `pnpm test:unit`   | 72 tests passed, including GitHub URL, crypto, token lease, provider, config, sanitizer |
-| `pnpm test:db`     | Passed on local disposable PostgreSQL: v1.0 upgrade, fresh apply, RLS/runtime role, CAS |
-| `pnpm build`       | Passed on the candidate                                                                 |
-| `pnpm test:smoke`  | Passed against the production build; rendered routes only, not provider acceptance      |
-| Independent review | Not performed; required before merge                                                    |
+| Check              | Result                                                                                                                                       |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm exec eslint` | Passed on every changed TypeScript file                                                                                                      |
+| `pnpm typecheck`   | Passed on the candidate                                                                                                                      |
+| `pnpm test:unit`   | 72 tests passed, including GitHub URL, crypto, token lease, provider, config, sanitizer                                                      |
+| `pnpm test:db`     | Passed on local disposable PostgreSQL: v1.0 upgrade, fresh apply, RLS/runtime role, CAS                                                      |
+| `pnpm build`       | Passed on the candidate                                                                                                                      |
+| `pnpm test:smoke`  | Passed against the production build; rendered routes only, not provider acceptance                                                           |
+| Independent review | Review requested; CHANGES_REQUESTED on `e3a3843`; `55ee268` approved in the review handoff. The final head must be re-reviewed before merge. |
 
 Command results and any blocked check are reported in the handoff. A green
 local check does not replace CI or independent review.
@@ -105,7 +105,7 @@ installation, repository, or test pull request exist in this environment.
 - Confirm no `service_role`, privileged `DATABASE_URL`, or App private key is
   present in the runtime environment.
 - Confirm backups and a recovery owner for the target database.
-- Review inherited Circle license notices before any promotion.
+- Review inherited Circle license notices before release.
 
 ## Rollback and recovery
 
@@ -130,5 +130,3 @@ installation, repository, or test pull request exist in this environment.
   were not observed against a running deployment.
 - Search and writes depend on the target database having the Work migrations
   applied.
-- Beta acceptance and any Stable promotion are manual owner decisions; neither
-  is established by this document.

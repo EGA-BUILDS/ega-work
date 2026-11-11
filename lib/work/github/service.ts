@@ -104,6 +104,19 @@ function decryptAccess(config: GithubConfig, row: GithubConnectionRecord): strin
    });
 }
 
+/**
+ * Re-read guard for stalled/unusable lease branches: a concurrent finalize or
+ * reconnect may have produced a fresh credential in the gap. Only reuse it
+ * when the same classifier that governs token issuance says it is usable.
+ */
+function usableReread(config: GithubConfig, row: GithubConnectionRecord): AuthorizedToken | null {
+   if (classifyConnectionToken(row).kind !== 'usable') {
+      return null;
+   }
+   const token = decryptAccess(config, row);
+   return token ? { token, generation: row.connection_generation, row } : null;
+}
+
 function providerCode(error: unknown): GithubServiceErrorCode {
    if (!(error instanceof GithubRequestError)) {
       return 'outage';
@@ -171,6 +184,12 @@ async function authorizedToken(
       if (!reread || reread.revoked_at) {
          fail('disconnected');
       }
+      // A concurrent finalize or reconnect may have made this row usable in
+      // the gap. Only break the connection when it is still stalled.
+      const usable = usableReread(config, reread);
+      if (usable) {
+         return usable;
+      }
       // The previous worker may already have consumed the single-use refresh
       // token. Reclaiming it would risk replay, so require reconnect.
       await broken(config, actor, reread.connection_generation);
@@ -181,6 +200,10 @@ async function authorizedToken(
       const reread = await store.readConnection(config, actor.workspaceId);
       if (!reread || reread.revoked_at) {
          fail('disconnected');
+      }
+      const usable = usableReread(config, reread);
+      if (usable) {
+         return usable;
       }
       await broken(config, actor, reread.connection_generation);
       fail('reauthorization_required');
@@ -207,17 +230,22 @@ async function authorizedToken(
          providerOptions
       );
    } catch (error) {
-      // GitHub may already have consumed the single-use refresh token even
-      // when the response was lost. Reusing it could replay a credential, so
-      // require reconnect instead of releasing the lease for another attempt.
-      await broken(config, actor, claim.row.connection_generation);
       if (
          error instanceof GithubRequestError &&
          (error.failure === 'reauthorization_required' || error.failure === 'denied')
       ) {
+         // Definitive revocation: tokens are useless and private metadata must
+         // be hidden.
+         await broken(config, actor, claim.row.connection_generation);
          fail('reauthorization_required');
       }
-      fail(providerCode(error));
+
+      // Timeout, 5xx, rate limit, or an unknown provider failure is transient.
+      // Keep the last successful observation, mark it stale, and leave the
+      // lease in place so the single-use refresh token is never replayed.
+      const code = providerCode(error);
+      await store.markPullRequestsStale(config, actor.workspaceId, code);
+      fail(code);
    }
 
    const access = encryptSecret(config.tokenEncryptionKey, tokens.accessToken);

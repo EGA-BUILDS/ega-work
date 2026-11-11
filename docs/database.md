@@ -129,10 +129,11 @@ The second database applies the full history from empty, then checks:
   integration data, foreign-key checks without parent `SELECT`, one PR per
   issue, and PR/issue status independence;
 - one-time OAuth state claim and the refresh/token CAS races are single-winner;
-  an expired lease with an owner is not reclaimable, release/finalize clear the
-  lease, unlink or disconnect during a refresh commits zero rows, a successful
-  re-authorization bumps the generation and carries linked PRs, and a stale
-  callback generation cannot reconnect.
+  an expired lease with an owner is not reclaimable and finalize is the only
+  path that clears it, unlink or disconnect during a refresh commits zero rows,
+  a transient token-refresh failure preserves the last observation and marks it
+  stale, a successful re-authorization bumps the generation and carries linked
+  PRs, and a stale callback generation cannot reconnect.
 
 It drops both databases before exit and prints no credentials. The migration SQL
 is not idempotent; the journal is what prevents re-application.

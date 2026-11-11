@@ -444,6 +444,39 @@ async function saveHiddenPullRequests(client: PoolClient, workspaceId: string): 
 }
 
 /**
+ * Marks the last successful observations stale without clearing them. Used
+ * when a token refresh fails transiently: title, URL, state, and the last
+ * success time stay visible, and the refresh lease is intentionally left in
+ * place so a later attempt cannot replay a possibly-consumed refresh token.
+ */
+export async function markPullRequestsStale(
+   config: GithubConfig,
+   workspaceId: string,
+   errorCode: string
+): Promise<void> {
+   const safeCode = [
+      'outage',
+      'rate_limited',
+      'installation_unavailable',
+      'not_found',
+      'reauthorization_required',
+   ].includes(errorCode)
+      ? errorCode
+      : 'outage';
+
+   await withContext(config, { workspaceId }, async (client) => {
+      await client.query(
+         `update work_pull_requests
+          set is_stale = true,
+              last_check_error = $2,
+              updated_at = now()
+          where workspace_id = $1 and hidden = false`,
+         [workspaceId, safeCode]
+      );
+   });
+}
+
+/**
  * Marks a connection unusable after a definitive authorization failure.
  * Returns false when the generation already moved (disconnect won the race),
  * in which case nothing is restored.

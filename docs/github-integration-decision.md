@@ -72,8 +72,11 @@ deployed origin:
   stored token. A lease left behind by a crashed worker (expired lease with a
   lease id) is **stalled**: it is never reclaimed and its single-use refresh
   token is never replayed; the workspace is marked unusable and must reconnect.
-  Only a missing lease permits a new refresh. A failed or ambiguous refresh
-  exchange marks the connection unusable instead of replaying the refresh token.
+  Only a missing lease permits a new refresh. A transient timeout, 5xx, or rate
+  limit preserves the last successful observation, marks it stale, and leaves
+  the lease in place; because a later attempt then sees a stalled lease, it
+  requires reconnect before refreshing again. A definitive authorization failure
+  clears tokens and hides data instead of replaying the refresh token.
   A successful connect bumps the connection generation; a same-provider
   re-authorization carries linked PR rows forward, a different provider user
   hides them, and an old callback generation finalizes nothing.
