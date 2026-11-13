@@ -71,12 +71,12 @@ append-only: do not rewrite earlier entries; add corrections as new dated entrie
 - After the owner provisions the fixture: two tests discovered, run read-only, record redacted fixture identity and results; do not click refresh/link/unlink during evidence collection unless that is the explicitly agreed fixture action.
 - Blockers: none of this may be substituted by mocking — a mock proves wiring, not the integration. I02 additionally requires `E2E_GITHUB_EXPECTED_STATE=connected`.
 
-## 2026-11-13 — G5 #33 — OWNER APPROVAL, AGENT (DEFERRED)
+## 2026-11-13 — G5 #33 — AGENT (implementation only, DEFERRED — never triggered)
 
-- Prerequisites: owner approves the manual workflow; owner confirms the SHA-specific Preview is reachable without leaking any protection secret; `workflow_dispatch`-only workflow on `main` with inputs `deployment_url`, `deployment_id`, `commit_sha`.
-- Identity verification: the workflow queries the GitHub Deployments API (`deployments: read`) for a deployment whose `sha` equals the full input SHA, requires a **successful** deployment status, and requires the status `environment_url` origin to equal `deployment_url`. If Vercel does not publish GitHub Deployments for this repository, the verification step fails closed and the gate stays BLOCKED until the owner configures an equivalent verified mechanism. User-supplied inputs alone are never treated as proof.
-- Runs P01–P04 only. No auth/write modes, no schedule, no untrusted-PR secrets, no artifacts uploaded.
-- Owner-run: dispatch with the verified inputs; confirm run URL, outcome, and that no sensitive artifact (trace/screenshot/log with headers) exists. Revoke/adjust inputs if the wrong deployment was selected.
+- Agent implementation: `.github/workflows/e2e-public.yml` (`workflow_dispatch` only; P01–P04; Node 22; pnpm via `packageManager`; frozen lockfile; Chromium only; one worker, zero retries; `contents: read` + `deployments: read`; no secrets mapped; no artifacts uploaded; identity verification via the GitHub Deployments API — `sha` equality, latest status `success`, `environment_url` origin equality — with fail-closed behavior when the platform publishes no GitHub Deployments). Docs: `docs/testing/playwright-g5.md`.
+- Runtime: **NOT TRIGGERED — OWNER REQUEST; DEFERRED.** The workflow has never run, never been triggered, and its verification logic is untested against a live deployment.
+- Prerequisites: owner approves the manual workflow; owner confirms the SHA-specific Preview is reachable without leaking any protection secret; `workflow_dispatch` inputs must bind immutable URL, ID, SHA and the verification step must pass.
+- Owner-run: dispatch with the verified inputs; confirm run URL, outcome, and that no sensitive artifact (trace/screenshot/log with headers) exists. If verification fails closed, investigate or configure a verified deployment-metadata mechanism; never weaken the verification step.
 - Blockers: protection-secret handling that cannot be done safely blocks the whole gate; any leak is a rotate-and-stop event.
 
 ## 2026-11-13 — Security audit #34 — OWNER (BLOCKED)

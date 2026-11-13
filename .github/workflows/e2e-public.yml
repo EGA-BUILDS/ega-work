@@ -1,0 +1,165 @@
+name: E2E (public, manual)
+
+# Manual-only acceptance checks for the PUBLIC routes (P01-P04).
+# There is intentionally no push/pull_request/schedule trigger and no
+# authenticated or write mode here. Issues #28/#29/#34 govern the owner-run gates.
+#
+# Identity model: user-supplied inputs are NOT proof of anything by themselves.
+# The job fails closed unless all of the following hold:
+#   1. commit_sha is a full 40-hex SHA;
+#   2. deployment_id is a GitHub Deployment ID that exists for THIS repository,
+#      whose "sha" equals commit_sha, whose latest status is "success";
+#   3. the verified deployment status' environment_url has the same origin as
+#      deployment_url (scheme + host + port).
+# If the hosting platform does not publish GitHub Deployments for this
+# repository/branch, step "Verify deployment identity" fails closed and this
+# workflow stays BLOCKED until the owner configures a verified deployment
+# metadata mechanism. Do NOT weaken that step to make the workflow green.
+#
+# No bypass secret, no Vercel Protection bypass, no owner credentials, and no
+# untrusted-PR access: the workflow never maps any secret. If the deployment is
+# protected, the public checks fail or are blocked; that is the intended signal.
+# No artifacts are uploaded by this workflow (traces/screenshots stay on the
+# runner and are discarded).
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_url:
+        description: 'Immutable https origin of the exact deployment (e.g. https://ega-work-<hash>.vercel.app). No path, no credentials.'
+        required: true
+        type: string
+      deployment_id:
+        description: 'GitHub Deployment ID (integer) that must match commit_sha'
+        required: true
+        type: string
+      commit_sha:
+        description: 'Full 40-character commit SHA of the deployment'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  deployments: read
+
+concurrency:
+  group: e2e-public-manual
+  cancel-in-progress: false
+
+jobs:
+  public-e2e:
+    name: Public E2E (P01-P04)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      HUSKY: '0'
+    steps:
+      - name: Validate dispatch inputs (fail closed)
+        id: validate
+        env:
+          DEPLOYMENT_URL: ${{ inputs.deployment_url }}
+          DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+          node <<'EOF'
+          const fs = require('fs');
+          const fail = (reason) => {
+            console.error(`::error::${reason}`);
+            process.exit(1);
+          };
+          const sha = (process.env.COMMIT_SHA ?? '').trim();
+          if (!/^[0-9a-f]{40}$/.test(sha)) {
+            fail('commit_sha must be a full 40-character lowercase hex SHA.');
+          }
+          const id = (process.env.DEPLOYMENT_ID ?? '').trim();
+          if (!/^[0-9]+$/.test(id)) {
+            fail('deployment_id must be the integer GitHub Deployment ID.');
+          }
+          let origin;
+          try {
+            const url = new URL((process.env.DEPLOYMENT_URL ?? '').trim());
+            if (url.protocol !== 'https:') fail('deployment_url must use https.');
+            if (url.username || url.password) fail('deployment_url must not contain credentials.');
+            if (url.pathname !== '' && url.pathname !== '/') fail('deployment_url must not have a path.');
+            if (url.search || url.hash) fail('deployment_url must not have a query or fragment.');
+            origin = url.origin;
+          } catch (error) {
+            if (error && error.message) fail(`deployment_url is not parseable: ${error.message}`);
+            throw error;
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `origin=${origin}\n`);
+          console.log(`Inputs valid. Target origin (not secret): ${origin}`);
+          EOF
+
+      - name: Verify deployment identity (fail closed)
+        id: verify
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+          COMMIT_SHA: ${{ inputs.commit_sha }}
+          ORIGIN: ${{ steps.validate.outputs.origin }}
+        run: |
+          set -euo pipefail
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "::error::gh CLI is not available on this runner; cannot verify the deployment. Refusing to run E2E."
+            exit 1
+          fi
+          if ! deployment_json="$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}")"; then
+            echo "::error::GitHub Deployments API did not return deployment ${DEPLOYMENT_ID} for ${GITHUB_REPOSITORY}. The platform may not publish GitHub Deployments for this repository. Refusing to run E2E; configure a verified deployment-metadata mechanism first."
+            exit 1
+          fi
+          deployed_sha="$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}" --jq '.sha')"
+          if [ "$deployed_sha" != "$COMMIT_SHA" ]; then
+            echo "::error::Deployment ${DEPLOYMENT_ID} sha (${deployed_sha}) does not equal commit_sha (${COMMIT_SHA}). Refusing to run E2E."
+            exit 1
+          fi
+          latest_state="$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses" --jq 'sort_by(.created_at) | reverse | .[0].state')"
+          if [ "$latest_state" != "success" ]; then
+            echo "::error::Latest deployment status for ${DEPLOYMENT_ID} is '${latest_state}', expected 'success'. Refusing to run E2E."
+            exit 1
+          fi
+          environment_url="$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses" --jq 'sort_by(.created_at) | reverse | .[0].environment_url')"
+          environment_origin="$(node -e "const u = new URL(process.argv[1]); process.stdout.write(u.origin);" "$environment_url")"
+          if [ "$environment_origin" != "$ORIGIN" ]; then
+            echo "::error::environment_url origin (${environment_origin}) does not equal deployment_url origin (${ORIGIN}). Refusing to run E2E."
+            exit 1
+          fi
+          echo "Deployment identity verified: deployment ${DEPLOYMENT_ID}, sha ${COMMIT_SHA}, state success, environment origin matches."
+
+      - name: Checkout the verified revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium (with system dependencies)
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E preflight (fail closed)
+        env:
+          E2E_BASE_URL: ${{ steps.validate.outputs.origin }}
+          E2E_ALLOWED_ORIGINS: ${{ steps.validate.outputs.origin }}
+        run: node scripts/e2e-preflight.mjs
+
+      - name: Report discovery (no execution)
+        run: pnpm exec playwright test --list --project=public
+
+      - name: Run public E2E (P01-P04 only)
+        env:
+          E2E_BASE_URL: ${{ steps.validate.outputs.origin }}
+          E2E_ALLOWED_ORIGINS: ${{ steps.validate.outputs.origin }}
+        run: pnpm exec playwright test --project=public
