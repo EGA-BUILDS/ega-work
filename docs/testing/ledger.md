@@ -40,12 +40,15 @@ append-only: do not rewrite earlier entries; add corrections as new dated entrie
 - Prerequisites: CI green for the patch SHA; dependency audit reviewed including the **R1 PostCSS residual-risk disposition** recorded explicitly; G1b evidence complete; v1.1.0 negative control recorded with the corrected 307 expectation (see divergence #1 in E2E-CONTEXT.md); candidate P04 = 307.
 - Decision: the owner records a dated **APPROVE** or **BLOCK** with rationale in this ledger. Any missing prerequisite means BLOCK, never inferred approval. P01–P03 passing does not prove advisories fixed (that is the audit/CI job).
 
-## 2026-11-13 — G2 #30 — OWNER PROVISIONS, AGENT (BLOCKED)
+## 2026-11-13 — G2 #30 — AGENT (implementation only, NOT RUN — BLOCKED)
 
+- Agent implementation: `e2e/auth.setup.ts`, `e2e/auth.teardown.ts`, `e2e/account.ts`, `e2e/workspace.auth.spec.ts` (A01–A05), `setup`/`authenticated`/`authenticated-teardown` projects, `playwright/.auth/user.json` gitignored + chmod 0600. Fresh password login through the real `/login` page; workspace UUID verified after landing; **no credentials committed or logged**; validation happens at test runtime so `--list` never fails on missing env.
+- Discovery: exactly 5 A-cases under `--project=authenticated`; `authenticate` setup and teardown listed separately (11 total including the 4 public cases).
+- Runtime: **NOT RUN — OWNER REQUEST; BLOCKED — owner credentials and fixture required.**
 - Prerequisites: owner confirms the EGA Work Supabase project identity and signup policy (do **not** assume the EGA Skills project shares this database); owner provisions a **disposable** E2E user, its one private workspace, and one canary project + one canary issue (A05, and later G3 writes).
 - Owner-run steps: set `E2E_EMAIL`, `E2E_PASSWORD`, `E2E_WORKSPACE_ID` (UUID), `E2E_CANARY_PROJECT_ID`, `E2E_CANARY_ISSUE_ID` in the run environment only; `pnpm test:e2e:typecheck`, `pnpm test:e2e:list` (expect 5 A-cases plus the separate `authenticate` setup), then two sequential `pnpm test:e2e` runs targeting the same origin; verify 5 PASS / 0 SKIP each run; confirm no mutations, delete local `playwright/.auth/` afterward (the `authenticated-teardown` project also removes it).
 - Blockers: without owner-provisioned account/canary records, every A-case fails at setup with a named missing-variable error. That is the intended BLOCKED signal, not a PASS.
-- Artifacts: auth project runs with `trace: off` and `screenshot: off`; never attach raw artifacts without the #34 audit.
+- Artifacts: auth projects run with `trace: off` and `screenshot: off`; never attach raw artifacts without the #34 audit.
 
 ## 2026-11-13 — G3 #31 — OWNER ONLY (BLOCKED)
 

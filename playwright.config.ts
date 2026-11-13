@@ -23,5 +23,30 @@ export default defineConfig({
          testMatch: /public\.public\.spec\.ts$/,
          use: { ...devices['Desktop Chrome'] },
       },
+      {
+         // Fresh password login for the dedicated disposable E2E account.
+         // No env is read at config load; validation happens at test runtime.
+         name: 'setup',
+         testMatch: /auth\.setup\.ts$/,
+         teardown: 'authenticated-teardown',
+         use: { ...devices['Desktop Chrome'], trace: 'off', screenshot: 'off' },
+      },
+      {
+         // Deletes playwright/.auth/user.json after the dependent projects finish.
+         name: 'authenticated-teardown',
+         testMatch: /auth\.teardown\.ts$/,
+         use: { ...devices['Desktop Chrome'], trace: 'off', screenshot: 'off' },
+      },
+      {
+         name: 'authenticated',
+         testMatch: /workspace\.auth\.spec\.ts$/,
+         dependencies: ['setup'],
+         use: {
+            ...devices['Desktop Chrome'],
+            storageState: 'playwright/.auth/user.json',
+            trace: 'off',
+            screenshot: 'off',
+         },
+      },
    ],
 });
