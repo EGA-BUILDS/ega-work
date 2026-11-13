@@ -37,20 +37,24 @@ there or in the repository is explicitly marked as unknown, not guessed.
 
 ## Environment variables
 
-| Variable                | Gate  | Meaning                                                                                               |
-| ----------------------- | ----- | ----------------------------------------------------------------------------------------------------- |
-| `E2E_BASE_URL`          | all   | Explicit https origin of the target (or loopback for local dev)                                       |
-| `E2E_ALLOWED_ORIGINS`   | all   | Comma-separated explicit allowlist; `E2E_BASE_URL` must be in it. Loopback origins are always allowed |
-| `E2E_EMAIL`             | G2+   | Dedicated disposable E2E account email (owner-provisioned)                                            |
-| `E2E_PASSWORD`          | G2+   | That account's password. Never logged, never committed                                                |
-| `E2E_WORKSPACE_ID`      | G2+   | Exact UUID of the E2E workspace; validated as UUID at runtime                                         |
-| `E2E_CANARY_PROJECT_ID` | G2/G3 | Canary project UUID (owner-provisioned)                                                               |
-| `E2E_CANARY_ISSUE_ID`   | G2/G3 | Canary issue UUID (owner-provisioned)                                                                 |
-| `E2E_ACCOUNT_USER_ID`   | G3    | Dedicated account's user UUID (write gate)                                                            |
-| `E2E_ALLOW_WRITES`      | G3    | Must equal `I_ACCEPT_TEST_DATA`; set only by the owner, never by automation                           |
-| `E2E_CONFIRMED_ORIGIN`  | G3    | Must equal the target origin exactly (write gate)                                                     |
-| `E2E_INJECT_FAILURE`    | G3    | Failure-injection hook, e.g. `after-write`; used to validate restoration                              |
-| `E2E_GITHUB_*`          | G4    | Fixture-only values (expected state, PR URL/title); absence means BLOCKED, never PASS                 |
+| Variable                       | Gate  | Meaning                                                                                               |
+| ------------------------------ | ----- | ----------------------------------------------------------------------------------------------------- |
+| `E2E_BASE_URL`                 | all   | Explicit https origin of the target (or loopback for local dev)                                       |
+| `E2E_ALLOWED_ORIGINS`          | all   | Comma-separated explicit allowlist; `E2E_BASE_URL` must be in it. Loopback origins are always allowed |
+| `E2E_EMAIL`                    | G2+   | Dedicated disposable E2E account email (owner-provisioned)                                            |
+| `E2E_PASSWORD`                 | G2+   | That account's password. Never logged, never committed                                                |
+| `E2E_WORKSPACE_ID`             | G2+   | Exact UUID of the E2E workspace; validated as UUID at runtime                                         |
+| `E2E_CANARY_PROJECT_ID`        | G2/G3 | Canary project UUID (owner-provisioned)                                                               |
+| `E2E_CANARY_ISSUE_ID`          | G2/G3 | Canary issue UUID (owner-provisioned)                                                                 |
+| `E2E_ACCOUNT_USER_ID`          | G3    | Dedicated account's user UUID (write gate)                                                            |
+| `E2E_ALLOW_WRITES`             | G3    | Must equal `I_ACCEPT_TEST_DATA`; set only by the owner, never by automation                           |
+| `E2E_CONFIRMED_ORIGIN`         | G3    | Must equal the target origin exactly (write gate)                                                     |
+| `E2E_INJECT_FAILURE`           | G3    | Failure-injection hook, e.g. `after-write`; used to validate restoration                              |
+| `E2E_GITHUB_FIXTURE_CONFIRMED` | G4    | Must equal `I_CONFIRM_SAFE_GITHUB_FIXTURE`; owner sets it only for the disposable fixture             |
+| `E2E_GITHUB_EXPECTED_STATE`    | G4    | One of `connected`, `reauthorization_required`, `unconfigured`, `unavailable`, `disconnected`         |
+| `E2E_GITHUB_PR_URL`            | G4    | github.com https URL of the previously linked fixture PR (I02)                                        |
+| `E2E_GITHUB_PR_TITLE`          | G4    | Exact title of the linked fixture PR (I02)                                                            |
+| `E2E_GITHUB_REPO_REF`          | G4    | Optional `owner/repo#number` text asserted by I02                                                     |
 
 No value from this table may be committed. `.env*` files are gitignored (except `.env.dev.example`).
 

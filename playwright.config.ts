@@ -38,6 +38,17 @@ export default defineConfig({
          use: { ...devices['Desktop Chrome'], trace: 'off', screenshot: 'off' },
       },
       {
+         name: 'github-read',
+         testMatch: /github\.read\.spec\.ts$/,
+         dependencies: ['setup'],
+         use: {
+            ...devices['Desktop Chrome'],
+            storageState: 'playwright/.auth/user.json',
+            trace: 'off',
+            screenshot: 'off',
+         },
+      },
+      {
          name: 'canary-write',
          testMatch: /canary\.write\.spec\.ts$/,
          dependencies: ['setup'],

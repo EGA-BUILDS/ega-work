@@ -61,12 +61,15 @@ append-only: do not rewrite earlier entries; add corrections as new dated entrie
 - Restoration failure: the runner reports residue explicitly and preserves the original failure; the owner must manually inspect and restore before further runs.
 - Blockers: any identity mismatch or wrong origin blocks before any write.
 
-## 2026-11-13 — G4 #32 — OWNER FIXTURE, AGENT (DEFERRED / BLOCKED without fixture)
+## 2026-11-13 — G4 #32 — AGENT (implementation only, DEFERRED / BLOCKED without fixture, NOT RUN)
 
+- Agent implementation: `e2e/github.read.spec.ts` (I01 expected connection-state badge on workspace settings; I02 previously linked PR displayed read-only on the issue page), `github-read` project. No App installation, OAuth flow, link/refresh/unlink, repository write, or owner account anywhere in these cases. Without fixture variables the cases fail with named `BLOCKED` errors — never a PASS; no mock stands in for the integration.
+- Discovery: exactly 2 cases under `--project=github-read`.
+- Runtime: **NOT RUN — OWNER REQUEST; DEFERRED.** No fixture exists yet in any environment known to the agent.
 - Prerequisites: owner approval; a **disposable GitHub repository** and a **disposable GitHub App installation** usable only for this fixture; known expected state documented without credentials (expected connection state, linked PR URL/title/number). No owner GitHub account, no OAuth automation, no App installation by automation, no repository writes.
-- Fixture-only variables: `E2E_GITHUB_FIXTURE_CONFIRMED=I_CONFIRM_SAFE_GITHUB_FIXTURE`, `E2E_GITHUB_EXPECTED_STATE` (one of the known badge texts), `E2E_GITHUB_PR_URL`, `E2E_GITHUB_PR_TITLE`. Without them, I01/I02 fail with a **BLOCKED** message — never a PASS.
+- Fixture-only variables: `E2E_GITHUB_FIXTURE_CONFIRMED=I_CONFIRM_SAFE_GITHUB_FIXTURE`, `E2E_GITHUB_EXPECTED_STATE` (one of the known states), `E2E_GITHUB_PR_URL`, `E2E_GITHUB_PR_TITLE`, optional `E2E_GITHUB_REPO_REF`. Without them, I01/I02 fail with a **BLOCKED** message — never a PASS.
 - After the owner provisions the fixture: two tests discovered, run read-only, record redacted fixture identity and results; do not click refresh/link/unlink during evidence collection unless that is the explicitly agreed fixture action.
-- Blockers: none of this may be substituted by mocking — a mock proves wiring, not the integration.
+- Blockers: none of this may be substituted by mocking — a mock proves wiring, not the integration. I02 additionally requires `E2E_GITHUB_EXPECTED_STATE=connected`.
 
 ## 2026-11-13 — G5 #33 — OWNER APPROVAL, AGENT (DEFERRED)
 
