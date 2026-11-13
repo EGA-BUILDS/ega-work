@@ -50,13 +50,16 @@ append-only: do not rewrite earlier entries; add corrections as new dated entrie
 - Blockers: without owner-provisioned account/canary records, every A-case fails at setup with a named missing-variable error. That is the intended BLOCKED signal, not a PASS.
 - Artifacts: auth projects run with `trace: off` and `screenshot: off`; never attach raw artifacts without the #34 audit.
 
-## 2026-11-13 — G3 #31 — OWNER ONLY (BLOCKED)
+## 2026-11-13 — G3 #31 — AGENT (implementation only, NOT RUN — BLOCKED, owner-only)
 
+- Agent implementation: `e2e/write-gate.ts` (runtime gate, never config-load), `e2e/canary.write.spec.ts` (W01 project description, W02 issue description, W03 completion toggle), `canary-write` project, 60 s timeout, `trace/screenshot: off`. `try/finally` everywhere; restoration errors carry both failures plus residual-state guidance; deterministic canary markers; PATCH listeners registered before actions; `E2E_INJECT_FAILURE=after-write` failure-injection hook provided for owner validation; list mode works with no write env set.
+- Discovery: exactly 3 W-cases under `--project=canary-write`.
+- Runtime: **NOT RUN — OWNER REQUEST; BLOCKED — owner-only.** The agent never ran write mode and never set `E2E_ALLOW_WRITES`.
 - Prerequisites: G2 complete; owner verifies the disposable account, workspace UUID, canary project/issue IDs, records the originals of the canary fields to be touched (project description, issue description, issue status), and confirms nothing else in the workspace is canary.
-- Write gate (runtime, not config-load): `E2E_ALLOW_WRITES=I_ACCEPT_TEST_DATA`, `E2E_CONFIRMED_ORIGIN` equal to the exact target origin, `E2E_WORKSPACE_ID`/`E2E_ACCOUNT_USER_ID`/`E2E_CANARY_PROJECT_ID`/`E2E_CANARY_ISSUE_ID` all valid UUIDs and consistent. `pnpm test:e2e:list` must work **without** these set (validation happens at test runtime). Failure-injection: `E2E_INJECT_FAILURE=after-write` must still restore the original values (validated by the owner before the real run).
-- Owner-run steps: 60 s timeout, one worker, zero retries; verify after each run that all touched fields match the recorded originals (version counters may advance); confirm zero extra records created; confirm no DELETE endpoint was used.
+- Write gate (runtime, not config-load): `E2E_ALLOW_WRITES=I_ACCEPT_TEST_DATA`, `E2E_CONFIRMED_ORIGIN` equal to the exact target origin, `E2E_WORKSPACE_ID`/`E2E_ACCOUNT_USER_ID`/`E2E_CANARY_PROJECT_ID`/`E2E_CANARY_ISSUE_ID` all valid UUIDs and consistent. Failure-injection: `E2E_INJECT_FAILURE=after-write` must still restore the original values (validated by the owner before the real run).
+- Owner-run steps: 60 s timeout, one worker, zero retries; verify after each run that all touched fields match the recorded original (version counters may advance); confirm zero extra records created; confirm no DELETE endpoint was used.
 - Restoration failure: the runner reports residue explicitly and preserves the original failure; the owner must manually inspect and restore before further runs.
-- Blockers: any identity mismatch or wrong origin blocks before any write. The agent never runs write mode and never sets `E2E_ALLOW_WRITES`.
+- Blockers: any identity mismatch or wrong origin blocks before any write.
 
 ## 2026-11-13 — G4 #32 — OWNER FIXTURE, AGENT (DEFERRED / BLOCKED without fixture)
 
