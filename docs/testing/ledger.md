@@ -46,7 +46,7 @@ append-only: do not rewrite earlier entries; add corrections as new dated entrie
 - Discovery: exactly 5 A-cases under `--project=authenticated`; `authenticate` setup and teardown listed separately (11 total including the 4 public cases).
 - Runtime: **NOT RUN — OWNER REQUEST; BLOCKED — owner credentials and fixture required.**
 - Prerequisites: owner confirms the EGA Work Supabase project identity and signup policy (do **not** assume the EGA Skills project shares this database); owner provisions a **disposable** E2E user, its one private workspace, and one canary project + one canary issue (A05, and later G3 writes).
-- Owner-run steps: set `E2E_EMAIL`, `E2E_PASSWORD`, `E2E_WORKSPACE_ID` (UUID), `E2E_CANARY_PROJECT_ID`, `E2E_CANARY_ISSUE_ID` in the run environment only; `pnpm test:e2e:typecheck`, `pnpm test:e2e:list` (expect 5 A-cases plus the separate `authenticate` setup), then two sequential `pnpm test:e2e` runs targeting the same origin; verify 5 PASS / 0 SKIP each run; confirm no mutations, delete local `playwright/.auth/` afterward (the `authenticated-teardown` project also removes it).
+- Owner-run steps: set `E2E_EMAIL`, `E2E_PASSWORD`, `E2E_WORKSPACE_ID` (UUID), `E2E_CANARY_PROJECT_ID`, `E2E_CANARY_ISSUE_ID` in the run environment only; `pnpm test:e2e:typecheck`, `pnpm exec playwright test --project=authenticated --list` (expect 5 A-cases plus the separate `authenticate` setup), then two sequential `pnpm exec playwright test --project=authenticated` runs targeting the same origin; verify 5 PASS / 0 SKIP each run; confirm no mutations, delete local `playwright/.auth/` afterward (the `authenticated-teardown` project also removes it). (Command corrected after the post-implementation review: `pnpm test:e2e` is public-only.)
 - Blockers: without owner-provisioned account/canary records, every A-case fails at setup with a named missing-variable error. That is the intended BLOCKED signal, not a PASS.
 - Artifacts: auth projects run with `trace: off` and `screenshot: off`; never attach raw artifacts without the #34 audit.
 
@@ -57,7 +57,7 @@ append-only: do not rewrite earlier entries; add corrections as new dated entrie
 - Runtime: **NOT RUN — OWNER REQUEST; BLOCKED — owner-only.** The agent never ran write mode and never set `E2E_ALLOW_WRITES`.
 - Prerequisites: G2 complete; owner verifies the disposable account, workspace UUID, canary project/issue IDs, records the originals of the canary fields to be touched (project description, issue description, issue status), and confirms nothing else in the workspace is canary.
 - Write gate (runtime, not config-load): `E2E_ALLOW_WRITES=I_ACCEPT_TEST_DATA`, `E2E_CONFIRMED_ORIGIN` equal to the exact target origin, `E2E_WORKSPACE_ID`/`E2E_ACCOUNT_USER_ID`/`E2E_CANARY_PROJECT_ID`/`E2E_CANARY_ISSUE_ID` all valid UUIDs and consistent. Failure-injection: `E2E_INJECT_FAILURE=after-write` must still restore the original values (validated by the owner before the real run).
-- Owner-run steps: 60 s timeout, one worker, zero retries; verify after each run that all touched fields match the recorded original (version counters may advance); confirm zero extra records created; confirm no DELETE endpoint was used.
+- Owner-run steps: 60 s timeout, one worker, zero retries; verify after each run that all touched fields match the recorded original (version counters may advance); confirm zero extra records created; confirm no DELETE endpoint was used. (Write runs are always `--project=canary-write` with the full export set; `pnpm test:e2e` is public-only.)
 - Restoration failure: the runner reports residue explicitly and preserves the original failure; the owner must manually inspect and restore before further runs.
 - Blockers: any identity mismatch or wrong origin blocks before any write.
 
@@ -87,5 +87,12 @@ append-only: do not rewrite earlier entries; add corrections as new dated entrie
 - Exact-match scanning is not DLP; manual review is mandatory.
 
 ## 2026-11-13 — Master tracker #35 — OWNER (TO DO, tracked in issue #35)
+
+## 2026-11-13 — Post-implementation review — AGENT (corrective hardening, NOT RUN)
+
+- Branch `fix/e2e-post-implementation-review` on top of `5dc1084f3c2f6649a0d71aea7a012b43455fab50`; the five implementation commits are unchanged.
+- Confirmed fixes: non-public projects set `default: false` and `test:e2e`/`test:e2e:list` are public-only; orphaned `playwright/.auth/user.json` removed before login; canary write gate re-validates the allowlist and rejects unknown `E2E_INJECT_FAILURE`; allowlist diagnostics no longer print raw entries (userinfo/query leak risk); manual workflow documents that identity verification proves repo/sha/state/environment_url parity only — the Vercel project is NOT verified; auth setup uses the shared pageerror/5xx monitor; stale-state and teardown semantics documented.
+- Reviewed and left unchanged (with evidence): P04 (307 per committed smoke contract), all selectors and locators against live components, optimistic-lock handling in canary restores (fresh navigation revalidates version), monitoring fixture, fail-closed preflight.
+- Runtime: **NOT RUN — OWNER REQUEST.** No tests, builds, browsers, or workflows were executed. No credentials accessed. Issues #27/#29/#35 were updated to correct the withdrawn 404 negative-control expectation (remote edits limited to those three issues).
 
 Dependency map of the gates: #27 (G1a, FIRST) ← #28 (G1b) ← #29 (Release); #30 (G2) after #27 and #28; #31 (G3) after #30; #32 (G4) after #30 + fixture; #33 (G5) after #27 + SHA-specific Preview; #34 (audit) during #28. No gate is complete until this ledger records its evidence. Optional gates (#30–#33) must never be reported as done without their own evidence entries. No automatic merge, push, or deploy is authorized by this ledger.

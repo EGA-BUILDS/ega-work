@@ -6,8 +6,10 @@ owner step against a verified target.
 
 ## What exists after G1a
 
-- `playwright.config.ts` — one `public` Chromium project (`Desktop Chrome`), `testDir: ./e2e`,
-  `fullyParallel: false`, `workers: 1`, `retries: 0`, `timeout: 30s`, `reporter: list`.
+- `playwright.config.ts` — one default `public` Chromium project (`Desktop Chrome`), `testDir: ./e2e`,
+  `fullyParallel: false`, `workers: 1`, `retries: 0`, `timeout: 30s`, `reporter: list`. Every
+  non-public project (`setup`, `authenticated-teardown`, `authenticated`, `canary-write`,
+  `github-read`) sets `default: false`; only `pnpm test:e2e` / `--project=public` runs by default.
 - `e2e/fixtures.ts` — auto `monitor` fixture: fails the test on any `pageerror` or any
   first-party (same-origin as `baseURL`) HTTP 5xx response. Query strings and fragments are
   stripped before URLs are logged.
@@ -18,7 +20,9 @@ owner step against a verified target.
 - `scripts/e2e-preflight.mjs` — fail-closed preflight; prints `BLOCKED` reasons and exits 1.
 - `tsconfig.e2e.json` — isolated E2E type-check. Root `tsconfig.json` excludes `e2e/` and
   `playwright.config.ts` so application type-checking never swallows E2E files.
-- `package.json` scripts: `test:e2e` (preflight + run), `test:e2e:typecheck`, `test:e2e:list`.
+- `package.json` scripts: `test:e2e` (preflight + **public-only** run), `test:e2e:typecheck`,
+  `test:e2e:list` (public discovery only). Authenticated, canary-write and GitHub-fixture projects
+  must be selected explicitly, e.g. `pnpm exec playwright test --project=authenticated`.
 
 ## Target safety model
 
@@ -35,12 +39,15 @@ owner step against a verified target.
 ## Discovery (no execution)
 
 ```
-node_modules/.bin/playwright test --list
-node_modules/.bin/playwright test -g 'P04:' --list
+node_modules/.bin/playwright test --project=public --list
+node_modules/.bin/playwright test --project=public -g 'P04:' --list
+node_modules/.bin/playwright test --list   # all projects (never executed by CI/preflight)
 ```
 
-Expected: 4 tests for the former, 1 for the latter (`P04:` is intentionally unanchored in the
-grep; no other test name contains `P04:`).
+Expected: 4 public tests for the first command, 1 for the second (`P04:` is intentionally
+unanchored in the grep; no other test name contains `P04:`). The unqualified `--list` prints
+every project, including the owner-only authenticated/canary/github cases — discovery is safe
+(no credentials read at load), but never run without understanding what it lists.
 
 ## Running (owner)
 
@@ -53,12 +60,20 @@ pnpm test:e2e
 Expected outcome classes: **PASS**, **FAIL** (assertion mismatch), or **BLOCKED** (preflight),
 never a silent skip. The monitor turns any `pageerror` or first-party 5xx into a failure.
 
-### P04 negative control (owner step, post-merge of G1a)
+### P04 and the 307 expectation (owner step)
 
-Issue #27 originally asserted Production P04 = HTTP 404 = "NEGATIVE CONTROL PASS". That premise
-was corrected before implementation: **Production v1.1.0 expects HTTP 307 → `/`** (the 404 appeared
-in an intermediate candidate and was fixed). G1a asserts 307. The owner's release decision (#29)
-must be based on actual candidate/production behavior, not on the stale 404 expectation.
+Three different revisions are easy to confuse:
+
+- **v1.1.0 Production** (tag `v1.1.0` → `58c62f1…`): expected to answer HTTP **307 → `/`** for unknown nested
+  routes; the committed smoke contract (`scripts/smoke-production.mjs`) asserts exactly that.
+- **Intermediate Next.js 15.5 candidate**: regressed to HTTP 404; fixed by the later not-found
+  correction. It is **not** a reference for acceptance.
+- **v1.1.1 candidate** `8a5d1c393590bf23abb3a92552cb1eb5e7626d4d`: expected to answer HTTP **307**; release
+  decision evidence must be recorded against this exact SHA.
+
+Issue #27 originally asserted P04 = HTTP 404 as a "negative control"; that premise is withdrawn.
+G1a asserts **307**. If any candidate answers 404, file a patch finding — do **not** weaken the test.
+The owner's release decision (#29) must be based on the actual candidate SHA, not on any 404 expectation.
 
 ## Authenticated and write modes
 

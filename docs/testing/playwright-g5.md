@@ -10,12 +10,15 @@ cases (P01–P04) against an explicitly verified deployment. **It was never trig
 - Inputs: `deployment_url` (https origin, no path/query/credentials), `deployment_id` (integer
   GitHub Deployment ID), `commit_sha` (full 40-hex SHA).
 - Step 1 validates input shapes and normalizes the origin. Step 2 **verifies the deployment
-  identity using the GitHub Deployments API**: the deployment must exist for this repository,
-  its `sha` must equal `commit_sha`, its latest status must be `success`, and the status'
+  identity using the GitHub Deployments API** for this repository: the deployment must exist, its
+  `sha` must equal `commit_sha`, its latest status must be `success`, and the status'
   `environment_url` origin must equal the `deployment_url` origin. Any mismatch fails the job
-  closed. If the platform (e.g. Vercel) does not publish GitHub Deployments here, verification
-  fails closed and the workflow is unusable until the owner configures a verified
-  deployment-metadata mechanism — by design; user input alone never proves identity.
+  closed. This proves repository/sha/state/environment_url **parity only** — GitHub Deployments
+  carry no authoritative Vercel _project_ identifier, so the Vercel project is **not** verified by
+  this step (confirm it in the Vercel console if it matters). If the platform does not publish
+  GitHub Deployments for this repository, verification fails closed and the workflow is unusable
+  until the owner configures a verified deployment-metadata mechanism — by design; user input
+  alone never proves identity.
 - Node 22, pnpm 10.11.0 (`packageManager`), frozen lockfile, Chromium only, one worker, zero
   retries (from `playwright.config.ts`), `contents: read` + `deployments: read` permissions only.
 - Runs preflight, prints `--list` discovery, then P01–P04 against the verified origin. No

@@ -15,9 +15,9 @@
     "test:smoke": "node scripts/smoke-production.mjs",
     "test:db": "node --conditions=react-server --experimental-strip-types scripts/migration-test.mjs",
     "test:unit": "node --experimental-strip-types --test scripts/*.test.mjs",
-    "test:e2e": "node scripts/e2e-preflight.mjs && playwright test",
+    "test:e2e": "node scripts/e2e-preflight.mjs && playwright test --project=public",
     "test:e2e:typecheck": "tsc --noEmit -p tsconfig.e2e.json",
-    "test:e2e:list": "playwright test --list"
+    "test:e2e:list": "playwright test --project=public --list"
   },
   "dependencies": {
     "@hookform/resolvers": "^4.1.2",

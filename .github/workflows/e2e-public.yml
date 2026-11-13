@@ -11,10 +11,19 @@ name: E2E (public, manual)
 #      whose "sha" equals commit_sha, whose latest status is "success";
 #   3. the verified deployment status' environment_url has the same origin as
 #      deployment_url (scheme + host + port).
+# What this proves: the deployment record exists in this repository, was created
+# for exactly commit_sha, ended in state "success", and its environment URL
+# matches the URL you supplied. What it does NOT prove: that the deployment
+# belongs to the correct Vercel *project*. GitHub Deployments carry no
+# authoritative Vercel project identifier, and this workflow deliberately holds
+# no Vercel API token. If you require proof of the Vercel project identity,
+# do not dispatch this workflow — verify the deployment out-of-band in the
+# Vercel admin console instead (or configure a verified deployment-metadata
+# mechanism that attests the project). Do NOT weaken the verification step.
 # If the hosting platform does not publish GitHub Deployments for this
 # repository/branch, step "Verify deployment identity" fails closed and this
 # workflow stays BLOCKED until the owner configures a verified deployment
-# metadata mechanism. Do NOT weaken that step to make the workflow green.
+# metadata mechanism.
 #
 # No bypass secret, no Vercel Protection bypass, no owner credentials, and no
 # untrusted-PR access: the workflow never maps any secret. If the deployment is
@@ -127,6 +136,7 @@ jobs:
             exit 1
           fi
           echo "Deployment identity verified: deployment ${DEPLOYMENT_ID}, sha ${COMMIT_SHA}, state success, environment origin matches."
+          echo "Reminder: this proves repository/sha/state/environment_url parity only — NOT the Vercel project identity. Confirm the project out-of-band if that matters."
 
       - name: Checkout the verified revision
         uses: actions/checkout@v4

@@ -1,7 +1,7 @@
-import { mkdir, chmod } from 'node:fs/promises';
+import { mkdir, chmod, rm } from 'node:fs/promises';
 import path from 'node:path';
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 import { AUTH_STATE_PATH, UUID_PATTERN, loadAccountEnv } from './account';
 
@@ -14,6 +14,10 @@ import { AUTH_STATE_PATH, UUID_PATTERN, loadAccountEnv } from './account';
  */
 test('authenticate as the dedicated disposable E2E user', async ({ page }) => {
    const account = loadAccountEnv();
+
+   // Never authenticate against a stale stored session: remove any orphaned
+   // state from a previous (possibly crashed) run before logging in fresh.
+   await rm(AUTH_STATE_PATH, { force: true });
 
    await page.goto('/login');
 

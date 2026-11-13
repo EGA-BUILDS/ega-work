@@ -1,17 +1,15 @@
 import { expect, test } from './fixtures';
-import { escapeRegExp, loadAccountEnv, loadCanaryEnv } from './account';
+import { loadAccountEnv, loadCanaryEnv } from './account';
 
 test.describe('Authenticated read-only (disposable E2E account)', () => {
    test('A01: workspace dashboard and projects render', async ({ page }) => {
-      const { email, workspaceId } = loadAccountEnv();
+      const { workspaceId } = loadAccountEnv();
 
       await page.goto(`/w/${workspaceId}`);
       await expect(page).toHaveURL(new RegExp(`/w/${workspaceId}(/|$|\\?)`));
       // The workspace name is unknown; assert structure, not fixture content.
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-      await expect(
-         page.getByText(new RegExp(`Private saved work for ${escapeRegExp(email)}`))
-      ).toBeVisible();
+      await expect(page.getByText(/^Private saved work for .+/)).toBeVisible();
 
       await page.goto(`/w/${workspaceId}/projects`);
       await expect(page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();

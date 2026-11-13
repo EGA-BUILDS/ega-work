@@ -1,6 +1,12 @@
 // Authoritative allowlist logic for E2E target validation.
-// Used by scripts/e2e-preflight.mjs. playwright.config.ts duplicates the minimal
-// baseURL normalization (discovery only) and must stay in sync with this file.
+// Used by scripts/e2e-preflight.mjs (node) and e2e/write-gate.ts (Playwright,
+// canary writes) so the write path can never run against an unallowlisted
+// target even when invoked with --project=canary-write directly.
+// playwright.config.ts duplicates the minimal baseURL normalization (discovery
+// only) and must stay in sync with this file.
+//
+// @typedef {{ ok: true, origin: string }} ParsedOrigin
+// @typedef {{ ok: false, reason: string }} InvalidOrigin
 
 /** Loopback origins are always allowed; anything remote must be explicitly listed. */
 export const LOOPBACK_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
@@ -9,6 +15,9 @@ export const LOOPBACK_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000
  * Parse and strictly validate a configured origin. Returns the normalized origin
  * (scheme + host + port, no trailing slash) or a machine-readable reason.
  * Never returns or logs paths, query strings, or credentials.
+ * @param {unknown} raw
+ * @param {string} variableName used verbatim in the returned reason code; never contains the value
+ * @returns {ParsedOrigin | InvalidOrigin}
  */
 export function parseOrigin(raw, variableName) {
    if (typeof raw !== 'string' || raw.trim() === '') {
@@ -40,18 +49,22 @@ export function parseOrigin(raw, variableName) {
 /**
  * Parse a comma-separated allowlist. Every entry must pass the same strict
  * origin validation; one bad entry blocks the whole run (fail closed).
+ * The offending entry's position (1-based) is returned — never the raw value,
+ * which may carry userinfo or query strings.
+ * @param {unknown} raw
+ * @returns {{ ok: true, origins: string[] } | { ok: false, reason: string, entryIndex: number }}
  */
 export function parseAllowlist(raw) {
    const origins = [...LOOPBACK_ORIGINS];
    const entries = typeof raw === 'string' ? raw.split(',') : [];
-   for (const entry of entries) {
-      const trimmed = entry.trim();
+   for (let index = 0; index < entries.length; index += 1) {
+      const trimmed = entries[index].trim();
       if (trimmed === '') {
          continue;
       }
       const parsed = parseOrigin(trimmed, 'E2E_ALLOWED_ORIGINS');
       if (!parsed.ok) {
-         return { ok: false, reason: parsed.reason, entry: trimmed };
+         return { ok: false, reason: parsed.reason, entryIndex: index + 1 };
       }
       if (!origins.includes(parsed.origin)) {
          origins.push(parsed.origin);
@@ -62,7 +75,8 @@ export function parseAllowlist(raw) {
 
 /**
  * Validate E2E_BASE_URL against the explicit allowlist.
- * Returns { ok: true, baseUrl } or { ok: false, reasons: string[] }.
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {{ ok: true, baseUrl: string, allowlist: string[] } | { ok: false, reasons: string[] }}
  */
 export function validateTarget(env = process.env) {
    const reasons = [];
@@ -74,7 +88,7 @@ export function validateTarget(env = process.env) {
 
    const allowlist = parseAllowlist(env.E2E_ALLOWED_ORIGINS);
    if (!allowlist.ok) {
-      reasons.push(`${allowlist.reason} (entry: ${allowlist.entry})`);
+      reasons.push(`${allowlist.reason} (allowlist entry #${allowlist.entryIndex})`);
    }
 
    if (!base.ok || !allowlist.ok) {

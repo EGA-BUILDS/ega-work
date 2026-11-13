@@ -8,9 +8,12 @@ there or in the repository is explicitly marked as unknown, not guessed.
 
 - Repository: `EGA-BUILDS/ega-work` (origin: `https://github.com/EGA-BUILDS/ega-work.git`)
 - `origin/main` at time of G1a implementation: `58c62f1e488625771d8b124b17eba13e7d29e778`
-- Production baseline: tag `v1.1.0` (resolves to the same commit as the base above)
-- v1.1.1 candidate SHA (not merged, not this branch): `8a5d1c393590bf23abb3a92552cb1eb5e7626d4d`
-- Package manager: pnpm 10.11.0; CI uses Node 22 (this implementation environment ran Node 24.22.3 for static checks only)
+- Issues #27–#29 treat tag `v1.1.0` as the Production baseline; that claim comes from the issues,
+  it is **not independently verified from this repository**. Tag `v1.1.0` resolves to the base above.
+- Intermediate Next.js 15.5 candidate: regressed unknown-route handling to HTTP 404; fixed before
+  release. Not a reference for acceptance.
+- **v1.1.1 candidate SHA** (not merged, not this branch): `8a5d1c393590bf23abb3a92552cb1eb5e7626d4d`
+- Package manager: pnpm 10.11.0; CI uses Node 22 (implementation environment ran Node 24.22.3 for static checks only)
 - Runner: `@playwright/test` **1.65.0**, pinned exactly, Chromium only, one worker, zero retries
 
 ## Gates, actors, and dependencies (from issues #27–#35)
@@ -60,12 +63,16 @@ No value from this table may be committed. `.env*` files are gitignored (except 
 
 ## Commands
 
-| Command                          | Purpose                                                                                               |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `pnpm test:e2e:typecheck`        | Type-check `e2e/` and `playwright.config.ts` with `tsconfig.e2e.json`                                 |
-| `pnpm test:e2e:list`             | Discovery only (`playwright test --list`); does not execute tests                                     |
-| `pnpm test:e2e`                  | Preflight gate, then `playwright test`. **Runtime execution requires owner request and environment.** |
-| `node scripts/e2e-preflight.mjs` | Print OK or BLOCKED reasons; exits 1 on any problem                                                   |
+| Command                          | Purpose                                                                                                         |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `pnpm test:e2e:typecheck`        | Type-check `e2e/` and `playwright.config.ts` with `tsconfig.e2e.json`                                           |
+| `pnpm test:e2e:list`             | Public discovery only (`--project=public --list`); does not execute tests                                       |
+| `pnpm test:e2e`                  | Public-only run (preflight + `--project=public`). **Runtime execution requires owner request and environment.** |
+| `node scripts/e2e-preflight.mjs` | Print OK or BLOCKED reasons; exits 1 on any problem                                                             |
+
+Authenticated, canary-write and GitHub-fixture projects are never selected by default:
+only `public` runs via `pnpm test:e2e`; every other project sets `default: false` (Playwright 1.65)
+and must be selected explicitly, e.g. `pnpm exec playwright test --project=authenticated`.
 
 ## Discovery targets (per issue)
 
@@ -95,6 +102,24 @@ No value from this table may be committed. `.env*` files are gitignored (except 
 6. **`~/.agents/skills/playwright-cli/SKILL.md` was not present** on this machine; Playwright guidance was
    taken from the official documentation at playwright.dev instead. No global Playwright CLI was present either;
    the pinned local `@playwright/test` 1.65.0 was used for discovery.
+7. **Post-implementation review hardening (`fix/e2e-post-implementation-review`)**: non-public projects set
+   `default: false`; `test:e2e` and `test:e2e:list` are public-only; `auth.setup.ts` deletes orphaned
+   `playwright/.auth/user.json` before logging in; the canary write gate re-validates the target allowlist
+   (via `scripts/e2e-target.mjs#validateTarget`) before any write and rejects unknown `E2E_INJECT_FAILURE`
+   values; allowlist diagnostics never echo raw entries; the manual workflow's identity check documents that
+   it proves repository/sha/state/environment_url parity only — **not** the Vercel project.
+8. **`tsconfig.json` excludes `ega-work/`** — an untracked nested copy of this repository present only in some
+   local checkouts (here: the owner's parallel candidate inspection). The exclusion changes nothing in a clean
+   checkout; it prevents `**/*.ts` from swallowing a duplicate app with its own `node_modules`. It may be
+   removed when the nested copy is gone. Root typechecking otherwise covers exactly the same files.
+9. **Issue #30 said "wait hydration with `toHaveValue`"** — the implementation compares `inputValue()` instead,
+   because a failed `toHaveValue(email/password)` would print the account email (and, for the password field,
+   its cleartext) into assertion errors and artifacts. Semantics are identical; only the failure output differs.
+10.   **Issue #30 expects the auth state deleted "afterward"** — Playwright's teardown project deletes it after the
+      dependent projects finish (verified in the installed 1.65.0 task-runner source: the teardown project is
+      scheduled after its setup/dependents and runs even when setup fails). Setup additionally deletes orphaned
+      state before a fresh login. A hard kill can still orphan the file; recovery is documented in
+      `playwright-g2.md`.
 
 ## Ledger
 

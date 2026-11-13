@@ -86,7 +86,3 @@ export function loadCanaryEnv(): CanaryEnv {
       issueTitle: optional('E2E_CANARY_ISSUE_TITLE'),
    };
 }
-
-export function escapeRegExp(value: string): string {
-   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
