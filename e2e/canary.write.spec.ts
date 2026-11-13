@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 
 import { expect, test } from './fixtures';
+import { prepareWrite } from './identity';
 import { formatUnknown, loadWriteGate, type WriteGateEnv } from './write-gate';
 
 test.describe('Canary writes (owner-only, reversible)', () => {
@@ -56,6 +57,8 @@ test.describe('Canary writes (owner-only, reversible)', () => {
       testMarker: string;
    }): Promise<void> {
       const gate = loadWriteGate(baseURL);
+      // Verify the signed-in identity and canary fixture access BEFORE any mutation.
+      await prepareWrite(page, gate);
       const targetId = kind === 'project' ? gate.canaryProjectId : gate.canaryIssueId;
       const apiPath = `/api/workspaces/${gate.workspaceId}/${kind === 'project' ? 'projects' : 'issues'}/${targetId}`;
       const pagePath = `/w/${gate.workspaceId}/${kind === 'project' ? 'projects' : 'issues'}/${targetId}`;
@@ -130,6 +133,8 @@ test.describe('Canary writes (owner-only, reversible)', () => {
       baseURL,
    }) => {
       const gate: WriteGateEnv = loadWriteGate(baseURL);
+      // Verify the signed-in identity and canary fixture access BEFORE any mutation.
+      await prepareWrite(page, gate);
       const apiPath = `/api/workspaces/${gate.workspaceId}/issues/${gate.canaryIssueId}`;
       const pagePath = `/w/${gate.workspaceId}/issues/${gate.canaryIssueId}`;
 

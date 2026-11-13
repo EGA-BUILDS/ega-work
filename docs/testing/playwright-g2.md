@@ -63,6 +63,9 @@ separately; they are not A-cases. The full `playwright test --list` prints 4 pub
 
 - Non-public projects set `trace: off` and `screenshot: off` so no authentication artifacts are
   recorded. Before sharing any of `test-results/` with anyone, run the issue #34 audit.
+- If the owner enables the G1b protected-Preview bypass (`E2E_G1B_PREVIEW_BYPASS=I_ACCEPT_PREVIEW_BYPASS`),
+  `setup` now refuses to run: the public bypass bootstrap would plant cookies the stored session
+  state would otherwise capture. The two modes never mix; unset the variable for authenticated runs.
 
 ## Running (owner)
 

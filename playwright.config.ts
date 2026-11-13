@@ -31,6 +31,18 @@ export default defineConfig({
          use: { ...devices['Desktop Chrome'] },
       },
       {
+         // G1b (issue #28) owner-only protected Preview path: same public
+         // spec, but with the owner's bypass bootstrap fixture enabled and
+         // NO artifacts (a failure trace could carry the bypass cookie).
+         // Requires E2E_G1B_PREVIEW_BYPASS=I_ACCEPT_PREVIEW_BYPASS,
+         // E2E_G1B_PREVIEW_ORIGIN, and E2E_VERCEL_PROTECTION_BYPASS in the
+         // owner's isolated environment. No storageState; nothing persists.
+         name: 'preview',
+         testMatch: /public\.public\.spec\.ts$/,
+         default: false,
+         use: { ...devices['Desktop Chrome'], trace: 'off', screenshot: 'off' },
+      },
+      {
          // Fresh password login for the dedicated disposable E2E account.
          // No env is read at config load; validation happens at test runtime.
          name: 'setup',

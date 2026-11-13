@@ -3,6 +3,19 @@
 G5 adds `.github/workflows/e2e-public.yml`: a **manual-only** workflow that runs the four public
 cases (P01–P04) against an explicitly verified deployment. **It was never triggered or tested.**
 
+## Activation reality (read this first)
+
+`workflow_dispatch` only works once the workflow file exists on the repository's **default
+branch**. The workflow currently exists only on local implementation branches, so:
+
+- **It cannot be dispatched from GitHub right now** — the "Actions" tab does not list it, and any
+  attempt to trigger it fails with "workflow does not exist on the default branch".
+- It becomes eligible for manual dispatch **only after the owner reviews and integrates the
+  workflow into `main`** (by whatever integration path the owner chooses for the stacked E2E
+  branches).
+- **Do not merge the workflow (or the E2E branches) merely to enable testing.** Eligibility is a
+  side-effect of legitimate integration, never a reason to force it.
+
 ## What it does
 
 - Trigger: `workflow_dispatch` only — no push, pull request, or schedule. No other workflow is
@@ -13,26 +26,37 @@ cases (P01–P04) against an explicitly verified deployment. **It was never trig
   identity using the GitHub Deployments API** for this repository: the deployment must exist, its
   `sha` must equal `commit_sha`, its latest status must be `success`, and the status'
   `environment_url` origin must equal the `deployment_url` origin. Any mismatch fails the job
-  closed. This proves repository/sha/state/environment_url **parity only** — GitHub Deployments
-  carry no authoritative Vercel _project_ identifier, so the Vercel project is **not** verified by
-  this step (confirm it in the Vercel console if it matters). If the platform does not publish
-  GitHub Deployments for this repository, verification fails closed and the workflow is unusable
-  until the owner configures a verified deployment-metadata mechanism — by design; user input
-  alone never proves identity.
-- Node 22, pnpm 10.11.0 (`packageManager`), frozen lockfile, Chromium only, one worker, zero
-  retries (from `playwright.config.ts`), `contents: read` + `deployments: read` permissions only.
-- Runs preflight, prints `--list` discovery, then P01–P04 against the verified origin. No
-  authenticated/write cases, no secrets mapped, no artifacts uploaded (traces/screenshots stay on
-  the runner and are discarded).
+  closed.
+- What that verification proves — and what it does not:
+   - **Proves:** this repository records a deployment for exactly `commit_sha`, ending in state
+     `success`, whose `environment_url` origin equals the supplied URL.
+   - **Does NOT prove:** that the deployment belongs to the correct **Vercel project** (GitHub
+     Deployments carry no project identifier), that `deployment_id` maps to the intended project,
+     or that the URL is the immutable hash URL rather than a branch/Production alias (the origin
+     check catches alias mismatch only when the `environment_url` and your URL differ).
+   - Confirm the Vercel project identity **out-of-band** in the Vercel console/API with a
+     Vercel-scoped credential if the release decision requires it — this workflow deliberately
+     holds no Vercel token.
+- If the platform does not publish GitHub Deployments for this repository, or the metadata is
+  insufficient, verification fails closed and the workflow is unusable until the owner configures
+  a verified deployment-metadata mechanism — by design; user input alone never proves identity.
 
 ## What it does not do
 
 - It does not bypass Vercel Deployment Protection, and it uses no bypass secret. If the Preview
   is protected, public checks fail or are blocked; unprotecting or bypassing is an owner decision
-  handled outside this workflow (see issue #34).
-- It does not run G2–G4, does not dispatch automatically, and does not upload artifacts.
+  handled outside this workflow (see issues #28/#34 and `docs/testing/E2E-CONTEXT.md`, G1b).
+- It does not run authenticated or canary cases (default project is `public`; non-public projects
+  are `default: false`), does not dispatch automatically, and does not upload artifacts.
 
-## Owner acceptance (after this branch is merged to the default branch)
+## Is the workflow eligible today?
+
+**No.** It is unmerged; dispatch is impossible until the owner integrates it into the default
+branch after review. Eligibility is not evidence of correctness — run `--list` discovery and the
+owner-approved preflight after any integration, and verify the identity step's logs on the first
+real dispatch.
+
+## Owner acceptance (after this branch is integrated into the default branch)
 
 1. Ensure the repository publishes GitHub Deployments for the Preview (check
    `gh api repos/EGA-BUILDS/ega-work/deployments?sha=<candidate-sha>`). If not, configure the

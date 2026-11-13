@@ -61,6 +61,49 @@ there or in the repository is explicitly marked as unknown, not guessed.
 
 No value from this table may be committed. `.env*` files are gitignored (except `.env.dev.example`).
 
+### G1b — protected Preview bootstrap (owner-only)
+
+| Variable                       | Gate | Meaning                                                                                             |
+| ------------------------------ | ---- | --------------------------------------------------------------------------------------------------- |
+| `E2E_G1B_PREVIEW_BYPASS`       | G1b  | Must equal `I_ACCEPT_PREVIEW_BYPASS`; owner-only opt-in, disabled by default                        |
+| `E2E_G1B_PREVIEW_ORIGIN`       | G1b  | Exact immutable Preview origin; must equal the allowlisted `E2E_BASE_URL`                           |
+| `E2E_VERCEL_PROTECTION_BYPASS` | G1b  | The Vercel bypass secret, read only in the owner's isolated environment. Never printed or persisted |
+
+Bootstrap behavior (all fail-closed, named BLOCKED errors, no secrets in output):
+
+1. It is inert unless `E2E_G1B_PREVIEW_BYPASS=I_ACCEPT_PREVIEW_BYPASS` is set by the owner.
+2. The exact preview origin must equal the allowlisted target; `E2E_BASE_URL` must pass the same
+   strict validation as the preflight.
+3. ONE same-origin request is made with `x-vercel-protection-bypass` / `x-vercel-set-bypass-cookie:
+true` and **no redirect following** (any 3xx Location must resolve to the same origin).
+4. A second same-origin request **without** the header verifies the cookie-based access; failure
+   blocks before any test runs.
+5. The bypass cookie only ever lives in the ephemeral per-test browser context. It is never
+   written to `storageState`, never logged, and it disappears when the context closes.
+6. Authenticated gates refuse to run with the bootstrap enabled (the stored session state would
+   otherwise capture the bypass cookie) — the two modes never mix. The `preview` project is
+   public-only and forces `trace: off` / `screenshot: off`.
+7. The normal public path is completely unchanged when the gate variables are absent.
+
+### G1b — candidate deployment verification (owner)
+
+No exact-SHA deployment is known to exist for the v1.1.1 candidate; record
+`G1b BLOCKED — NO VERIFIED EXACT-SHA DEPLOYMENT` in the ledger until all of the following are true:
+
+1. The intended Vercel **project** exists and this repository is connected to it (confirm in the
+   Vercel console — GitHub Deployments carry no project identifier).
+2. A deployment exists whose metadata resolves the **full** SHA
+   `8a5d1c393590bf23abb3a92552cb1eb5e7626d4d` (e.g. via `gh api
+repos/EGA-BUILDS/ega-work/deployments?sha=<sha>` or the Vercel console) and whose ID identifies
+   that exact deployment.
+3. The deployment's immutable URL (per-deployment hash URL — never a branch alias such as
+   `git-main` or a Production alias) is noted.
+4. Its status is READY (or `success`).
+5. The protection method is recorded (password / Vercel Authentication / none) so the bootstrap
+   path above — or plain public access — is chosen deliberately.
+6. Every observation above is recorded in `docs/testing/ledger.md`. If any item fails, the gate
+   stays BLOCKED; do not create, redeploy, or re-point deployments to unblock it.
+
 ## Commands
 
 | Command                          | Purpose                                                                                                         |
@@ -72,7 +115,9 @@ No value from this table may be committed. `.env*` files are gitignored (except 
 
 Authenticated, canary-write and GitHub-fixture projects are never selected by default:
 only `public` runs via `pnpm test:e2e`; every other project sets `default: false` (Playwright 1.65)
-and must be selected explicitly, e.g. `pnpm exec playwright test --project=authenticated`.
+and must be selected explicitly, e.g. `pnpm exec playwright test --project=authenticated`. The
+`preview` project (same public spec, `trace: off`/`screenshot: off`, `default: false`) is the
+owner-only G1b path and is used with the bypass gate described above.
 
 ## Discovery targets (per issue)
 
@@ -120,6 +165,17 @@ and must be selected explicitly, e.g. `pnpm exec playwright test --project=authe
       scheduled after its setup/dependents and runs even when setup fails). Setup additionally deletes orphaned
       state before a fresh login. A hard kill can still orphan the file; recovery is documented in
       `playwright-g2.md`.
+11.   **Raw user IDs are rendered on the settings page** (`Workspace ID`, `Account ID`). The canary identity
+      gate reads those rendered values and compares them with the approved environment — it never prints them
+      (`xpath=..` row read, `includes()` compare, id-free errors). This is the strongest available identity
+      evidence without a service-role query; it is still a **rendering** check, so the owner must also confirm
+      the account/workspace pairing out-of-band before any write run.
+12.   **G1b protected-Preview bootstrap implementation** — the plain public suite cannot see inside a protected
+      Preview (it fails honestly instead). The owner-only `preview` project + env-gated auto-fixture implements
+      the documented bypass boundary without changing the normal public path; see the G1b sections above.
+13.   **G1b candidate deployment** — no exact-SHA Vercel deployment for `8a5d1c3…` has been verified to exist.
+      `G1b BLOCKED — NO VERIFIED EXACT-SHA DEPLOYMENT` remains the recorded state until the owner performs the
+      G1b candidate verification above. This file does not claim one exists.
 
 ## Ledger
 

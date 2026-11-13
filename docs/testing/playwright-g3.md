@@ -11,12 +11,39 @@ confirmed origin, and is BLOCKED by default.
   (`scripts/e2e-target.mjs#validateTarget` — `E2E_BASE_URL` required, https or loopback only,
   listed in `E2E_ALLOWED_ORIGINS`, no path/query/credentials) and requires
   `E2E_CONFIRMED_ORIGIN` to equal that authorized origin exactly. UUID validation for
-  `E2E_WORKSPACE_ID`, `E2E_ACCOUNT_USER_ID` (shape-checked only — ownership is confirmed by the
-  owner out-of-band), `E2E_CANARY_PROJECT_ID`, `E2E_CANARY_ISSUE_ID`. `E2E_INJECT_FAILURE` accepts
-  only `after-write` (or empty); anything else fails closed.
+  `E2E_WORKSPACE_ID`, `E2E_ACCOUNT_USER_ID`, `E2E_CANARY_PROJECT_ID`, `E2E_CANARY_ISSUE_ID`.
+  `E2E_INJECT_FAILURE` accepts only `after-write` (or empty); anything else fails closed.
+- `e2e/identity.ts` — **authenticated-identity verification, executed before any mutation.**
+  Reads the Settings page (`/w/<E2E_WORKSPACE_ID>/settings`, rendered from a Supabase
+  `getUser()`-verified session) and compares the rendered `Workspace ID` and `Account ID` rows
+  against `E2E_WORKSPACE_ID` and `E2E_ACCOUNT_USER_ID` using row reads (`xpath=..`) and an
+  `includes()` check — expected values never enter a locator or an error message. Then it opens
+  the canary project and issue through the authorized UI (404 or missing editing surfaces =
+  named BLOCKED error). No new endpoint, no service-role query, no application code.
 - `e2e/canary.write.spec.ts` — W01 (project description), W02 (issue description), W03 (issue
-  completion toggle). One worker, zero retries, 60 s timeout, `trace/screenshot: off`.
+  completion toggle). Each case calls the identity check first; a mismatch or an unreadable
+  canary page blocks before any write. One worker, zero retries, 60 s timeout, `trace/screenshot: off`.
 - `playwright.config.ts` — `canary-write` project, same auth pattern as G2.
+
+## What identity means here — and what it does not
+
+Before **each** canary write, the run must prove the browser session is the approved one:
+
+1. Preflight/env gates (explicit origin, allowlist, opt-in, UUIDs).
+2. `/w/<workspace>/settings` renders the session's `Workspace ID` and `Account ID`; both rows
+   must contain the approved UUIDs, or the run stops with a BLOCKED identity error.
+3. The canary project and issue both open through the authorized UI — this binds the two UUIDs
+   to records actually visible in the approved workspace (RLS/server authorization is the only
+   thing that can make those pages render). If either 404s or renders no editing surface, the run
+   stops before any mutation.
+
+This is a **rendering-level** check. It proves the signed-in session is the approved session for
+this workspace and that the canary records live there; it does not replace the owner's
+out-of-band confirmation that the account, workspace, project, and issue pair is the intended
+one. `E2E_ACCOUNT_USER_ID` is no longer a decorative input — a mismatch now hard-blocks.
+
+There is deliberately no E2E-only backdoor: no admin endpoints, no service-role keys, no direct
+table reads. Everything goes through the same authorized UI journey the app itself enforces.
 
 ## Case behavior
 
@@ -38,8 +65,10 @@ confirmed origin, and is BLOCKED by default.
 
 ## Owner validation (before the real run)
 
-1. Confirm isolated canary identity; record original values (project description, issue
-   description, issue status).
+1. Confirm isolated canary identity (disposable account paired with the workspace — confirmed out-of-band);
+   record original values (project description, issue description, issue status). The run will,
+   before any write, refuse to proceed unless the signed-in session matches `E2E_WORKSPACE_ID`
+   and `E2E_ACCOUNT_USER_ID` and both canary UUIDs open in that workspace.
 2. Verify the failure-injection path restores correctly:
    `E2E_INJECT_FAILURE=after-write pnpm exec playwright test --project=canary-write` — the case(s)
    should fail with `[E2E_INJECT_FAILURE]` in the original-failure line while the canary fields end

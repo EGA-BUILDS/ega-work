@@ -13,6 +13,15 @@ import { AUTH_STATE_PATH, UUID_PATTERN, loadAccountEnv } from './account';
  * `authenticated-teardown` project then deletes it.
  */
 test('authenticate as the dedicated disposable E2E user', async ({ page }) => {
+   // The public G1b bypass bootstrap would plant the bypass cookie in this
+   // context, and storageState() would persist it into user.json. Fail
+   // closed instead: authenticated gates never run with the bypass active.
+   if (process.env.E2E_G1B_PREVIEW_BYPASS === 'I_ACCEPT_PREVIEW_BYPASS') {
+      throw new Error(
+         'BLOCKED: the G1b preview bypass is enabled. Authenticated acceptance must not run with the public bypass bootstrap active (the stored session state would capture the bypass cookie). Unset E2E_G1B_PREVIEW_BYPASS for authenticated runs.'
+      );
+   }
+
    const account = loadAccountEnv();
 
    // Never authenticate against a stale stored session: remove any orphaned

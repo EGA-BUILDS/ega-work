@@ -1,11 +1,18 @@
 import { expect, test as base } from '@playwright/test';
 
+import { bootstrapPreviewBypass } from './preview-bypass';
+
 /**
  * Shared E2E fixtures.
  *
  * The `monitor` fixture is automatic: every test fails when the page records a
  * `pageerror` or the first-party origin returns an HTTP 5xx response. It never
  * swallows failures itself; it reports them after the test body has finished.
+ *
+ * The `vercelBypass` fixture is automatic but inert unless the owner's
+ * isolated environment opts in with E2E_G1B_PREVIEW_BYPASS (and supplies the
+ * preview origin + bypass secret). See e2e/preview-bypass.ts and
+ * docs/testing/E2E-CONTEXT.md (G1b). The public path is unchanged otherwise.
  */
 
 type MonitorFailure = {
@@ -23,7 +30,16 @@ function responseTarget(url: string): string {
    }
 }
 
-export const test = base.extend<{ monitor: void }>({
+export const test = base.extend<{ monitor: void; vercelBypass: void }>({
+   vercelBypass: [
+      async ({ context }, use) => {
+         if (process.env.E2E_G1B_PREVIEW_BYPASS === 'I_ACCEPT_PREVIEW_BYPASS') {
+            await bootstrapPreviewBypass(context);
+         }
+         await use();
+      },
+      { auto: true },
+   ],
    monitor: [
       async ({ page, baseURL }, use) => {
          const failures: MonitorFailure[] = [];
